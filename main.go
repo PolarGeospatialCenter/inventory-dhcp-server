@@ -13,7 +13,6 @@ import (
 )
 
 var conf = map[string]string{
-	"networkName": "provisioning",
 	//"subnet cidr"
 	//"listen address"
 	//"ntp?"
@@ -23,8 +22,15 @@ var conf = map[string]string{
 	//"inventory config path"
 }
 
+type DHCPServerConfig struct {
+	ListenIP           string // The IP The server listens on
+	IPNet              string // The subnet this server is giving out addresses on
+	InventoryCliConfig string
+}
+
 type DHCPServer struct {
 	Inventory inventoryNodeGetter
+	Config    DHCPServerConfig
 }
 
 type inventoryNodeGetter interface {
@@ -46,48 +52,60 @@ func getNetworkMatchingMacFromInventoryNode(mac net.HardwareAddr, node *types.In
 	return nil, fmt.Errorf("no network found matching mac address %s", mac)
 }
 
-func dhcpModifiersFromNicConfig(nicConfig *types.NicConfig) ([]dhcpv4.Modifier, error) {
+func dhcpModifiersFromNicConfig(nicConfig *types.NicConfig, ipNet *net.IPNet) ([]dhcpv4.Modifier, error) {
 	result := []dhcpv4.Modifier{}
 
 	if len(nicConfig.IP) < 1 {
 		return result, fmt.Errorf("no IP found in nicConfig")
 	}
 
-	// Append the IP information from the first IP in the network
-	ip, ipNet, err := net.ParseCIDR(nicConfig.IP[0])
-	if err != nil {
-		return nil, err
-	}
-	result = append(result,
-		dhcpv4.WithYourIP(ip),
-		dhcpv4.WithNetmask(ipNet.Mask))
+	for index, ip := range nicConfig.IP {
+		inventoryIPParsed, inventoryIPNetParsed, err := net.ParseCIDR(ip)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing IP in inventory %s: %v", ip, err)
+		}
 
-	// Append Gateway if it exists
-	gateway := net.ParseIP(nicConfig.Gateway[0])
-	if gateway != nil {
-		result = append(result,
-			dhcpv4.WithRouter(gateway))
-	}
+		if ipNet.Contains(inventoryIPParsed) {
 
-	// Append DNS Servers if they exist
-	dnsServers := []net.IP{}
-	for _, dnsServer := range nicConfig.DNS {
-		dnsServers = append(dnsServers, net.ParseIP(dnsServer))
+			// Append our IP
+			result = append(result,
+				dhcpv4.WithYourIP(inventoryIPParsed),
+				dhcpv4.WithNetmask(inventoryIPNetParsed.Mask))
+
+			// Append Gateway at our IP index if it exists
+			gateway := net.ParseIP(nicConfig.Gateway[index])
+			if gateway != nil {
+				result = append(result,
+					dhcpv4.WithRouter(gateway))
+			}
+
+			// Append DNS Servers if they exist
+			dnsServers := []net.IP{}
+			for _, dnsServer := range nicConfig.DNS {
+				dnsServers = append(dnsServers, net.ParseIP(dnsServer))
+			}
+			result = append(result,
+				dhcpv4.WithDNS(dnsServers...))
+		}
 	}
-	result = append(result,
-		dhcpv4.WithDNS(dnsServers...))
 
 	return result, nil
 }
 
 func (d *DHCPServer) modifiersFromInventoryNode(mac net.HardwareAddr, inventoryNode *types.InventoryNode) ([]dhcpv4.Modifier, error) {
 
+	// The network the user provided in config to match against
+	_, ipNet, err := net.ParseCIDR(d.Config.IPNet)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing user provided IPNet %s: %v", d.Config.IPNet, err)
+	}
+
 	nicInstance, err := getNetworkMatchingMacFromInventoryNode(mac, inventoryNode)
 	if err != nil {
 		return nil, err
 	}
 
-	modifiers, err := dhcpModifiersFromNicConfig(&nicInstance.Config)
+	modifiers, err := dhcpModifiersFromNicConfig(&nicInstance.Config, ipNet)
 	if err != nil {
 		return nil, err
 	}
@@ -158,10 +176,13 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 func setDefaultConfig() {
 	viper.SetDefault("ListenIP", "0.0.0.0")
 	viper.SetDefault("InventoryCliConfig", "")
-
+	viper.SetDefault("IPNet", "")
 }
 
 func main() {
+
+	srv := &DHCPServer{}
+
 	//  Setup Config
 	viper.SetConfigName("config")
 	viper.AddConfigPath("/etc/inventory-dhcp-server")
@@ -181,8 +202,15 @@ func main() {
 
 	viper.AutomaticEnv()
 
+	err = viper.Unmarshal(&srv.Config)
+	if err != nil {
+		log.Panic(fmt.Errorf("fatal error unmarshaling config file: %v", err))
+	}
+
+	log.Infof("%+v", srv.Config)
+
 	laddr := net.UDPAddr{
-		IP:   net.ParseIP(viper.GetString("ListenIP")),
+		IP:   net.ParseIP(srv.Config.ListenIP),
 		Port: dhcpv4.ServerPort,
 	}
 
@@ -191,9 +219,7 @@ func main() {
 		log.Panic(fmt.Errorf("cannot connect to inventory api: %v", err))
 	}
 
-	srv := &DHCPServer{
-		Inventory: client.NodeConfig(),
-	}
+	srv.Inventory = client.NodeConfig()
 
 	server := server4.NewServer(laddr, srv.handler)
 

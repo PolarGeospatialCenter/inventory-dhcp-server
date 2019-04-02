@@ -25,7 +25,7 @@ func TestDhcpModifiersFromNicConfig(t *testing.T) {
 		},
 	}
 
-	// _, ipnet, _ := net.ParseCIDR("192.168.1.1/24")
+	_, ipNet, _ := net.ParseCIDR("192.168.1.1/24")
 	// expectedMods := []dhcpv4.Modifier{
 	// 	dhcpv4.WithYourIP(net.ParseIP("192.168.1.1")),
 	// 	dhcpv4.WithNetmask(ipnet.Mask),
@@ -33,7 +33,7 @@ func TestDhcpModifiersFromNicConfig(t *testing.T) {
 	// 	dhcpv4.WithDNS(net.ParseIP("192.168.1.1"), net.ParseIP("192.168.1.2")),
 	// }
 
-	_, err := dhcpModifiersFromNicConfig(&nicConfig)
+	_, err := dhcpModifiersFromNicConfig(&nicConfig, ipNet)
 	if err != nil {
 		t.Errorf("got error from function, %v", err)
 	}
@@ -80,7 +80,6 @@ func (i MockInventory) GetByMac(mac net.HardwareAddr) (*types.InventoryNode, err
 func TestCreateOfferPacket(t *testing.T) {
 
 	mockIP, mockNet, _ := net.ParseCIDR("192.168.1.10/24")
-
 	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
 	mockRequest, _ := dhcpv4.NewDiscovery(mac)
 	expectedPacket, _ := dhcpv4.NewReplyFromRequest(mockRequest,
@@ -94,6 +93,9 @@ func TestCreateOfferPacket(t *testing.T) {
 
 	mockServer := DHCPServer{
 		Inventory: MockInventory{},
+		Config: DHCPServerConfig{
+			IPNet: mockNet.String(),
+		},
 	}
 
 	packet, err := mockServer.createOfferPacket(mockRequest)
