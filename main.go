@@ -26,6 +26,8 @@ type DHCPServerConfig struct {
 	ListenIP           string // The IP The server listens on
 	IPNet              string // The subnet this server is giving out addresses on
 	InventoryCliConfig string
+	NextServer         string // The NextServer option to pass to clients
+	Filename           string // The Filename option to pass to clients
 }
 
 type DHCPServer struct {
@@ -52,7 +54,7 @@ func getNetworkMatchingMacFromInventoryNode(mac net.HardwareAddr, node *types.In
 	return nil, fmt.Errorf("no network found matching mac address %s", mac)
 }
 
-func dhcpModifiersFromNicConfig(nicConfig *types.NicConfig, ipNet *net.IPNet) ([]dhcpv4.Modifier, error) {
+func modifiersFromNicConfig(nicConfig *types.NicConfig, ipNet *net.IPNet) ([]dhcpv4.Modifier, error) {
 	result := []dhcpv4.Modifier{}
 
 	if len(nicConfig.IP) < 1 {
@@ -92,6 +94,22 @@ func dhcpModifiersFromNicConfig(nicConfig *types.NicConfig, ipNet *net.IPNet) ([
 	return result, nil
 }
 
+func (d *DHCPServer) globalModifiers() []dhcpv4.Modifier {
+	result := []dhcpv4.Modifier{}
+
+	if d.Config.NextServer != "" {
+		result = append(result,
+			dhcpv4.WithOption(dhcpv4.OptTFTPServerName(d.Config.NextServer)))
+	}
+
+	if d.Config.Filename != "" {
+		result = append(result,
+			dhcpv4.WithOption(dhcpv4.OptBootFileName(d.Config.Filename)))
+	}
+
+	return result
+}
+
 func (d *DHCPServer) modifiersFromInventoryNode(mac net.HardwareAddr, inventoryNode *types.InventoryNode) ([]dhcpv4.Modifier, error) {
 
 	// The network the user provided in config to match against
@@ -105,7 +123,7 @@ func (d *DHCPServer) modifiersFromInventoryNode(mac net.HardwareAddr, inventoryN
 		return nil, err
 	}
 
-	modifiers, err := dhcpModifiersFromNicConfig(&nicInstance.Config, ipNet)
+	modifiers, err := modifiersFromNicConfig(&nicInstance.Config, ipNet)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +131,8 @@ func (d *DHCPServer) modifiersFromInventoryNode(mac net.HardwareAddr, inventoryN
 	if inventoryNode.Hostname != "" {
 		modifiers = append(modifiers, dhcpv4.WithOption(dhcpv4.OptHostName(inventoryNode.Hostname)))
 	}
+
+	modifiers = append(modifiers, d.globalModifiers()...)
 
 	return modifiers, err
 

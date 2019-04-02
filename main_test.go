@@ -33,7 +33,7 @@ func TestDhcpModifiersFromNicConfig(t *testing.T) {
 	// 	dhcpv4.WithDNS(net.ParseIP("192.168.1.1"), net.ParseIP("192.168.1.2")),
 	// }
 
-	_, err := dhcpModifiersFromNicConfig(&nicConfig, ipNet)
+	_, err := modifiersFromNicConfig(&nicConfig, ipNet)
 	if err != nil {
 		t.Errorf("got error from function, %v", err)
 	}
@@ -88,13 +88,17 @@ func TestCreateOfferPacket(t *testing.T) {
 		dhcpv4.WithDNS(net.ParseIP("192.168.1.5")),
 		dhcpv4.WithRouter(net.ParseIP("192.168.1.1")),
 		dhcpv4.WithOption(dhcpv4.OptHostName("test-node-00")),
+		dhcpv4.WithOption(dhcpv4.OptTFTPServerName("192.168.1.50")),
+		dhcpv4.WithOption(dhcpv4.OptBootFileName("test.img")),
 		dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer),
 	)
 
 	mockServer := DHCPServer{
 		Inventory: MockInventory{},
 		Config: DHCPServerConfig{
-			IPNet: mockNet.String(),
+			IPNet:      mockNet.String(),
+			NextServer: "192.168.1.50",
+			Filename:   "test.img",
 		},
 	}
 
