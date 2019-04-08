@@ -12,16 +12,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var conf = map[string]string{
-	//"subnet cidr"
-	//"listen address"
-	//"ntp?"
-	//"search domains"
-	//"Next server"
-	//"filename"
-	//"inventory config path"
-}
-
 type DHCPServerConfig struct {
 	ListenIP           string // The IP The server listens on
 	IPNet              string // The subnet this server is giving out addresses on
@@ -188,8 +178,8 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	}
 
 	if reply != nil {
-		log.Print(reply.Summary())
-		//conn.WriteTo(m.ToBytes(), peer)
+		log.Infof("Sending DHCP reply to %s", m.ClientHWAddr)
+		conn.WriteTo(m.ToBytes(), peer)
 	}
 }
 
