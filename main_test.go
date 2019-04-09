@@ -26,19 +26,11 @@ func TestDhcpModifiersFromNicConfig(t *testing.T) {
 	}
 
 	_, ipNet, _ := net.ParseCIDR("192.168.1.1/24")
-	// expectedMods := []dhcpv4.Modifier{
-	// 	dhcpv4.WithYourIP(net.ParseIP("192.168.1.1")),
-	// 	dhcpv4.WithNetmask(ipnet.Mask),
-	// 	dhcpv4.WithRouter(net.ParseIP("192.168.1.254")),
-	// 	dhcpv4.WithDNS(net.ParseIP("192.168.1.1"), net.ParseIP("192.168.1.2")),
-	// }
 
 	_, err := modifiersFromNicConfig(&nicConfig, ipNet)
 	if err != nil {
 		t.Errorf("got error from function, %v", err)
 	}
-
-	// Check if the set of modifier functions are equal?
 
 }
 
@@ -111,4 +103,74 @@ func TestCreateOfferPacket(t *testing.T) {
 		t.Errorf("modified offer packet is not equal to expected: \n Expected: %s \n Got: %s", expectedPacket.Summary(), packet.Summary())
 	}
 
+}
+
+func TestValidPacket(t *testing.T) {
+
+	mockIP, mockNet, _ := net.ParseCIDR("192.168.1.10/24")
+	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
+	mockRequest, _ := dhcpv4.NewDiscovery(mac)
+	mockPacket, _ := dhcpv4.NewReplyFromRequest(mockRequest,
+		dhcpv4.WithYourIP(mockIP),
+		dhcpv4.WithNetmask(mockNet.Mask),
+		dhcpv4.WithDNS(net.ParseIP("192.168.1.5")),
+		dhcpv4.WithRouter(net.ParseIP("192.168.1.1")),
+		dhcpv4.WithOption(dhcpv4.OptHostName("test-node-00")),
+		dhcpv4.WithOption(dhcpv4.OptTFTPServerName("192.168.1.50")),
+		dhcpv4.WithOption(dhcpv4.OptBootFileName("test.img")),
+		dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer),
+	)
+
+	mockServer := DHCPServer{
+		Inventory: MockInventory{},
+		Config: DHCPServerConfig{
+			IPNet:      mockNet.String(),
+			NextServer: "192.168.1.50",
+			Filename:   "test.img",
+		},
+	}
+
+	valid, err := mockServer.validPacket(mockPacket)
+	if err != nil {
+		t.Errorf("got error creating offer packet: %v", err)
+	}
+
+	if !valid {
+		t.Errorf("packet is valid but validPacket returned false")
+	}
+}
+
+func TestValidPacketInvalid(t *testing.T) {
+
+	mockIP, mockNet, _ := net.ParseCIDR("192.168.1.11/24")
+	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
+	mockRequest, _ := dhcpv4.NewDiscovery(mac)
+	mockPacket, _ := dhcpv4.NewReplyFromRequest(mockRequest,
+		dhcpv4.WithYourIP(mockIP),
+		dhcpv4.WithNetmask(mockNet.Mask),
+		dhcpv4.WithDNS(net.ParseIP("192.168.1.5")),
+		dhcpv4.WithRouter(net.ParseIP("192.168.1.1")),
+		dhcpv4.WithOption(dhcpv4.OptHostName("test-node-00")),
+		dhcpv4.WithOption(dhcpv4.OptTFTPServerName("192.168.1.50")),
+		dhcpv4.WithOption(dhcpv4.OptBootFileName("test.img")),
+		dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer),
+	)
+
+	mockServer := DHCPServer{
+		Inventory: MockInventory{},
+		Config: DHCPServerConfig{
+			IPNet:      mockNet.String(),
+			NextServer: "192.168.1.50",
+			Filename:   "test.img",
+		},
+	}
+
+	valid, err := mockServer.validPacket(mockPacket)
+	if err != nil {
+		t.Errorf("got error creating offer packet: %v", err)
+	}
+
+	if valid {
+		t.Errorf("packet is not valid but validPacket returned true")
+	}
 }

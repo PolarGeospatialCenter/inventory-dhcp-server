@@ -150,6 +150,20 @@ func (d *DHCPServer) createOfferPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error)
 	return dhcpv4.NewReplyFromRequest(m, modifiers...)
 }
 
+//Verifies that a packet has the matching info in the inventory API
+func (d *DHCPServer) validPacket(m *dhcpv4.DHCPv4) (bool, error) {
+	// Get Packet that should of been offered
+	expectedPacket, err := d.createOfferPacket(m)
+	if err != nil {
+		return false, fmt.Errorf("error createing expected packet: %v", err)
+	}
+
+	if m.YourIPAddr.String() == expectedPacket.YourIPAddr.String() {
+		return true, nil
+	}
+	return false, nil
+}
+
 func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv4) {
 	// Setup our Reply
 	var reply *dhcpv4.DHCPv4
@@ -166,15 +180,20 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		}
 
 	case dhcpv4.MessageTypeRequest:
-		// ip, _ := lookupIPFromMac(m.ClientHWAddr, c)
-		// // If we don't have an IP for this mac address OR our IP is different, reject.
-		// if ip == nil || !ip.Equal(m.YourIPAddr) {
-		// 	reply, _ = dhcpv4.NewReplyFromRequest(m,
-		// 		dhcpv4.WithMessageType(dhcpv4.MessageTypeNak))
-		// } else {
-		reply, _ = dhcpv4.NewReplyFromRequest(m,
-			dhcpv4.WithMessageType(dhcpv4.MessageTypeAck))
-		// }
+
+		packetValid, err := d.validPacket(m)
+		if err != nil {
+			log.Errorf("error validating request packet for client %s: %v", m.ClientHWAddr, err)
+			return
+		}
+
+		if packetValid {
+			reply, _ = dhcpv4.NewReplyFromRequest(m,
+				dhcpv4.WithMessageType(dhcpv4.MessageTypeAck))
+		} else {
+			reply, _ = dhcpv4.NewReplyFromRequest(m,
+				dhcpv4.WithMessageType(dhcpv4.MessageTypeNak))
+		}
 	}
 
 	if reply != nil {
@@ -217,9 +236,9 @@ func main() {
 		log.Panic(fmt.Errorf("fatal error unmarshaling config file: %v", err))
 	}
 
-	log.Infof("%+v", srv.Config)
+	log.Infof("Config:\n %+v", srv.Config)
 
-	laddr := net.UDPAddr{
+	listenAddr := net.UDPAddr{
 		IP:   net.ParseIP(srv.Config.ListenIP),
 		Port: dhcpv4.ServerPort,
 	}
@@ -231,7 +250,7 @@ func main() {
 
 	srv.Inventory = client.NodeConfig()
 
-	server := server4.NewServer(laddr, srv.handler)
+	server := server4.NewServer(listenAddr, srv.handler)
 
 	defer server.Close()
 	if err := server.ActivateAndServe(); err != nil {
