@@ -122,6 +122,7 @@ func (d *DHCPServer) modifiersFromInventoryNode(mac net.HardwareAddr, inventoryN
 		modifiers = append(modifiers, dhcpv4.WithOption(dhcpv4.OptHostName(inventoryNode.Hostname)))
 	}
 
+	// Append whatever global modifiers we have
 	modifiers = append(modifiers, d.globalModifiers()...)
 
 	return modifiers, err
@@ -141,8 +142,6 @@ func (d *DHCPServer) createOfferPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error)
 	if err != nil {
 		return nil, err
 	}
-
-	// Get Global Modifiers
 
 	// Append Offer Message Type
 	modifiers = append(modifiers, dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer))
@@ -172,6 +171,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	switch m.MessageType() {
 
 	case dhcpv4.MessageTypeDiscover:
+		// If we get a discover packet, create an offer for its mac address
 
 		reply, err = d.createOfferPacket(m)
 		if err != nil {
@@ -180,6 +180,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		}
 
 	case dhcpv4.MessageTypeRequest:
+		// If we get a request packet, verify that the IP matches what is in inventory and send the correct response.
 
 		packetValid, err := d.validPacket(m)
 		if err != nil {
@@ -198,6 +199,8 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 
 	if reply != nil {
 		log.Infof("Sending DHCP reply to %s", m.ClientHWAddr)
+
+		// Convert the packet to bytes and send it to our peer.
 		conn.WriteTo(m.ToBytes(), peer)
 	}
 }
