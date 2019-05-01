@@ -3,6 +3,8 @@ FROM golang:alpine
 WORKDIR /go/src/github.com/PolarGeospatialCenter/inventory-dhcp-server
 
 COPY . ./
+RUN apk add make git
+ENV GO111MODULE on
 RUN make linux
 
 FROM alpine:latest
