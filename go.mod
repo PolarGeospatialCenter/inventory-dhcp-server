@@ -6,7 +6,7 @@ require (
 	github.com/OpenPeeDeeP/depguard v0.0.0-20181229194401-1f388ab2d810 // indirect
 	github.com/PolarGeospatialCenter/dockertest v0.0.0-20190402172603-7e70c31421a4 // indirect
 	github.com/PolarGeospatialCenter/inventory v0.1.0
-	github.com/PolarGeospatialCenter/inventory-client v0.0.0-20190318211938-cd35e90de6f8
+	github.com/PolarGeospatialCenter/inventory-client v0.0.0-20190501203930-163b28590e9f
 	github.com/StackExchange/wmi v0.0.0-20181212234831-e0a55b97c705 // indirect
 	github.com/alecthomas/gometalinter v3.0.0+incompatible // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect

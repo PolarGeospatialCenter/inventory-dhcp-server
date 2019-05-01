@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/PolarGeospatialCenter/inventory-client/pkg/api/client"
 	"github.com/PolarGeospatialCenter/inventory/pkg/inventory/types"
@@ -15,9 +16,9 @@ import (
 type DHCPServerConfig struct {
 	ListenIP           string // The IP The server listens on
 	IPNet              string // The subnet this server is giving out addresses on
-	InventoryCliConfig string
 	NextServer         string // The NextServer option to pass to clients
 	Filename           string // The Filename option to pass to clients
+	InventoryAPIConfig *client.InventoryApiConfig
 }
 
 type DHCPServer struct {
@@ -29,8 +30,13 @@ type inventoryNodeGetter interface {
 	GetByMac(mac net.HardwareAddr) (*types.InventoryNode, error)
 }
 
-func apiConnect() (*client.InventoryApi, error) {
-	return client.NewInventoryApiDefaultConfig(viper.GetString("InventoryCliConfig"))
+func apiConnect(cfg *client.InventoryApiConfig) (*client.InventoryApi, error) {
+
+	if cfg != nil {
+		return client.NewInventoryApiFromConfig(cfg)
+	}
+
+	return client.NewInventoryApiDefaultConfig("")
 }
 
 func getNetworkMatchingMacFromInventoryNode(mac net.HardwareAddr, node *types.InventoryNode) (*types.NICInstance, error) {
@@ -206,9 +212,14 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 }
 
 func setDefaultConfig() {
-	viper.SetDefault("ListenIP", "0.0.0.0")
-	viper.SetDefault("InventoryCliConfig", "")
-	viper.SetDefault("IPNet", "")
+	viper.SetDefault("listenip", "0.0.0.0")
+	viper.SetDefault("ipnet", "192.168.1.1/24")
+	viper.BindEnv("filename")
+	viper.BindEnv("nextserver")
+	viper.BindEnv("inventoryapiconfig.baseurl")
+	viper.BindEnv("inventoryapiconfig.aws.region")
+	viper.BindEnv("inventoryapiconfig.aws.vault_role")
+	viper.BindEnv("inventoryapiconfig.aws.profile")
 }
 
 func main() {
@@ -220,6 +231,8 @@ func main() {
 	viper.AddConfigPath("/etc/inventory-dhcp-server")
 	viper.AddConfigPath(".")
 	viper.SetEnvPrefix("inventory_dhcp")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+
 	setDefaultConfig()
 
 	err := viper.ReadInConfig()
@@ -239,14 +252,16 @@ func main() {
 		log.Panic(fmt.Errorf("fatal error unmarshaling config file: %v", err))
 	}
 
-	log.Infof("Config:\n %+v", srv.Config)
+	//	log.Infof("%+v", viper.AllSettings())
+	log.Infof("Server Config:\n %+v", srv.Config)
+	log.Infof("API Config:\n %+v", srv.Config.InventoryAPIConfig)
 
 	listenAddr := net.UDPAddr{
 		IP:   net.ParseIP(srv.Config.ListenIP),
 		Port: dhcpv4.ServerPort,
 	}
 
-	client, err := apiConnect()
+	client, err := apiConnect(srv.Config.InventoryAPIConfig)
 	if err != nil {
 		log.Panic(fmt.Errorf("cannot connect to inventory api: %v", err))
 	}

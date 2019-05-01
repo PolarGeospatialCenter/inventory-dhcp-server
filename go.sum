@@ -12,6 +12,8 @@ github.com/PolarGeospatialCenter/inventory v0.1.0 h1:XvN7C64K9MsJ5n64Mv+n0mG5uQD
 github.com/PolarGeospatialCenter/inventory v0.1.0/go.mod h1:INb2xHv3yErXp36g6BdHo4l/iTvA9eZ44Ric8Ea4Yg4=
 github.com/PolarGeospatialCenter/inventory-client v0.0.0-20190318211938-cd35e90de6f8 h1:BE8h12xxJ9yP+zZqQ8OMNURGLxYXXR1nPJhGSVmAodo=
 github.com/PolarGeospatialCenter/inventory-client v0.0.0-20190318211938-cd35e90de6f8/go.mod h1:QsV/s4jmJoQuQzJzRyaoCAd25QhbVjZ+HGq3oj1rd0Y=
+github.com/PolarGeospatialCenter/inventory-client v0.0.0-20190501203930-163b28590e9f h1:r99jk7Yt7aB6RtI5XKkGJKFKu/Yz/cwlb6SQ3QlWevY=
+github.com/PolarGeospatialCenter/inventory-client v0.0.0-20190501203930-163b28590e9f/go.mod h1:QsV/s4jmJoQuQzJzRyaoCAd25QhbVjZ+HGq3oj1rd0Y=
 github.com/PolarGeospatialCenter/vaulthelper v0.0.0-20190213212614-2c029db3511b h1:I4F6PlFSdC6Y/7l/0bFMcpYnxiiZ3A0/dKwXRF34Ips=
 github.com/PolarGeospatialCenter/vaulthelper v0.0.0-20190213212614-2c029db3511b/go.mod h1:g+bv+tR5dZj1uboIH51Ltuju2ASZ5K/aQkNSgIndfr4=
 github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
