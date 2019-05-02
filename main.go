@@ -204,7 +204,8 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	}
 
 	if reply != nil {
-		log.Infof("Sending DHCP reply to %s", m.ClientHWAddr)
+		log.Infof("Sending DHCP reply for %s to peer: %s", m.ClientHWAddr, peer)
+		log.Infof("Packet sent: %s", m.Summary())
 
 		// Convert the packet to bytes and send it to our peer.
 		conn.WriteTo(m.ToBytes(), peer)
