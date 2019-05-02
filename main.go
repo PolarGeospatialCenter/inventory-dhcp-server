@@ -178,6 +178,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 
 	case dhcpv4.MessageTypeDiscover:
 		// If we get a discover packet, create an offer for its mac address
+		log.Infof("Got discover message for: %s", m.ClientHWAddr)
 
 		reply, err = d.createOfferPacket(m)
 		if err != nil {
