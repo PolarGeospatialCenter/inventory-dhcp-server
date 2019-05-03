@@ -211,6 +211,9 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		if _, err := conn.WriteTo(reply.ToBytes(), peer); err != nil {
 			log.Errorf("Cannot reply to client %s: %v", reply.ClientHWAddr, err)
 		}
+
+		log.Infof("Replied to %s peer: %s", reply.ClientHWAddr, peer)
+		log.Infof("Packet Sent to peer: %s", reply.Summary())
 	}
 }
 
