@@ -241,6 +241,7 @@ func setDefaultConfig() {
 	viper.BindEnv("inventoryapiconfig.aws.region")
 	viper.BindEnv("inventoryapiconfig.aws.vault_role")
 	viper.BindEnv("inventoryapiconfig.aws.profile")
+	viper.BindEnv("serveridentifier")
 }
 
 func main() {
