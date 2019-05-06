@@ -205,6 +205,11 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	}
 
 	if reply != nil {
+		peer, err = net.ResolveUDPAddr("udp4", "255.255.255.255:67")
+		if err != nil {
+			log.Errorf("error setting peer address: %v", err)
+		}
+
 		log.Infof("Sending DHCP reply for %s to peer: %s", reply.ClientHWAddr, peer)
 
 		// Convert the packet to bytes and send it to our peer.
