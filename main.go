@@ -262,7 +262,7 @@ func main() {
 	log.Infof("Server Config:\n %+v", srv.Config)
 	log.Infof("API Config:\n %+v", srv.Config.InventoryAPIConfig)
 
-	listenAddr := net.UDPAddr{
+	listenAddr := &net.UDPAddr{
 		IP:   net.ParseIP(srv.Config.ListenIP),
 		Port: dhcpv4.ServerPort,
 	}
@@ -274,10 +274,13 @@ func main() {
 
 	srv.Inventory = client.NodeConfig()
 
-	server := server4.NewServer(listenAddr, srv.handler)
+	server, err := server4.NewServer(listenAddr, srv.handler)
 
-	defer server.Close()
-	if err := server.ActivateAndServe(); err != nil {
+	if err != nil {
+		log.Panic(err)
+	}
+
+	if err := server.Serve(); err != nil {
 		log.Panic(err)
 	}
 }
