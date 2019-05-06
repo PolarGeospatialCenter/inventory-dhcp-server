@@ -83,15 +83,18 @@ func TestCreateOfferPacket(t *testing.T) {
 		dhcpv4.WithOption(dhcpv4.OptTFTPServerName("192.168.1.50")),
 		dhcpv4.WithOption(dhcpv4.OptBootFileName("test.img")),
 		dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer),
+		dhcpv4.WithServerIP(net.ParseIP("192.168.1.50")),
+		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP("192.168.1.254"))),
 		dhcpv4.WithLeaseTime(3600),
 	)
 
 	mockServer := DHCPServer{
 		Inventory: MockInventory{},
 		Config: DHCPServerConfig{
-			IPNet:      mockNet.String(),
-			NextServer: "192.168.1.50",
-			Filename:   "test.img",
+			IPNet:            mockNet.String(),
+			NextServer:       "192.168.1.50",
+			Filename:         "test.img",
+			ServerIdentifier: "192.168.1.254",
 		},
 	}
 

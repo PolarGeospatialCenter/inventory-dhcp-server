@@ -18,6 +18,7 @@ type DHCPServerConfig struct {
 	IPNet              string // The subnet this server is giving out addresses on
 	NextServer         string // The NextServer option to pass to clients
 	Filename           string // The Filename option to pass to clients
+	ServerIdentifier   string // The Server Identifier, should be the IP of the network interface packets come in on.
 	InventoryAPIConfig *client.InventoryApiConfig
 }
 
@@ -102,6 +103,12 @@ func (d *DHCPServer) globalModifiers() []dhcpv4.Modifier {
 		result = append(result,
 			dhcpv4.WithOption(dhcpv4.OptBootFileName(d.Config.Filename)))
 	}
+
+	result = append(result,
+		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP(d.Config.ServerIdentifier))))
+
+	result = append(result,
+		dhcpv4.WithServerIP(net.ParseIP(d.Config.NextServer)))
 
 	result = append(result,
 		dhcpv4.WithLeaseTime(3600))
