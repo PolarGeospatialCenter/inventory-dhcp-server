@@ -83,6 +83,7 @@ func TestCreateOfferPacket(t *testing.T) {
 		dhcpv4.WithOption(dhcpv4.OptTFTPServerName("192.168.1.50")),
 		dhcpv4.WithOption(dhcpv4.OptBootFileName("test.img")),
 		dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer),
+		dhcpv4.WithLeaseTime(3600),
 	)
 
 	mockServer := DHCPServer{

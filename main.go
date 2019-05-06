@@ -103,6 +103,9 @@ func (d *DHCPServer) globalModifiers() []dhcpv4.Modifier {
 			dhcpv4.WithOption(dhcpv4.OptBootFileName(d.Config.Filename)))
 	}
 
+	result = append(result,
+		dhcpv4.WithLeaseTime(3600))
+
 	return result
 }
 
