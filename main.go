@@ -215,7 +215,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	}
 
 	if reply != nil {
-		peer, err = net.ResolveUDPAddr("udp4", "255.255.255.255:67")
+		peer, err = net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:68", reply.YourIPAddr.String()))
 		if err != nil {
 			log.Errorf("error setting peer address: %v", err)
 		}
