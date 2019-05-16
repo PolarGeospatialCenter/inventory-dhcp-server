@@ -1,0 +1,21 @@
+[Unit]
+Description=InventoryDhcpServer
+After=docker.service
+Requires=docker.service
+
+[Service]
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/docker kill  quay.io/polargeospatialcenter/inventory-dhcp-server 
+ExecStartPre=-/usr/bin/docker  quay.io/polargeospatialcenter/inventory-dhcp-server 
+ExecStartPre=/usr/bin/docker  quay.io/polargeospatialcenter/inventory-dhcp-server
+ExecStart=/usr/bin/docker run --name inventory-dhcp-server \
+    -e INVENTORY_DHCP_IPNET=192.168.1.2/24 \
+    -e INVENTORY_DHCP_FILENAME=file.pxe \
+    -e INVENTORY_DHCP_NEXTSERVER=192.168.1.1 \
+    -e INVENTORY_DHCP_INVENTORYAPICONFIG_BASEURL=systemdata.system.net \
+    -e INVENTORY_DHCP_INVENTORYAPICONFIG_AWS_REGION=us-east-2 \ 
+    -e INVENTORY_DHCP_INVENTORYAPICONFIG_AWS_VAULT_ROLE=systemdata.system.net \
+    quay.io/polargeospatialcenter/inventory-dhcp-server 
+
+[Install]
+WantedBy=multi-user.target
