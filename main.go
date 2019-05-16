@@ -184,7 +184,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	var reply *dhcpv4.DHCPv4
 	var err error
 
-	log.Infof("Got packet from peer %s: %s", peer, reply.Summary())
+	log.Infof("Got packet from peer %s: %s", peer, m.Summary())
 
 	switch m.MessageType() {
 
