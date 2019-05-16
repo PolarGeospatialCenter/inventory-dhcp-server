@@ -115,7 +115,7 @@ func TestValidPacket(t *testing.T) {
 	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
 	mockRequest, _ := dhcpv4.NewDiscovery(mac)
 	mockPacket, _ := dhcpv4.NewReplyFromRequest(mockRequest,
-		dhcpv4.WithYourIP(mockIP),
+		dhcpv4.WithOption(dhcpv4.OptRequestedIPAddress(mockIP)),
 		dhcpv4.WithNetmask(mockNet.Mask),
 		dhcpv4.WithDNS(net.ParseIP("192.168.1.5")),
 		dhcpv4.WithRouter(net.ParseIP("192.168.1.1")),

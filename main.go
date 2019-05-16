@@ -173,7 +173,7 @@ func (d *DHCPServer) validPacket(m *dhcpv4.DHCPv4) (bool, error) {
 		return false, fmt.Errorf("error createing expected packet: %v", err)
 	}
 
-	if m.YourIPAddr.String() == expectedPacket.YourIPAddr.String() {
+	if m.RequestedIPAddress().String() == expectedPacket.YourIPAddr.String() {
 		return true, nil
 	}
 	return false, nil
