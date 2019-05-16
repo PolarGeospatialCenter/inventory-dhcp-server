@@ -196,10 +196,10 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 			return
 		}
 
-		peer, err = net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:68", reply.YourIPAddr.String()))
-		if err != nil {
-			log.Errorf("error setting peer address: %v", err)
-		}
+		// peer, err = net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:68", reply.YourIPAddr.String()))
+		// if err != nil {
+		// 	log.Errorf("error setting peer address: %v", err)
+		// }
 
 	case dhcpv4.MessageTypeRequest:
 		// If we get a request packet, verify that the IP matches what is in inventory and send the correct response.
