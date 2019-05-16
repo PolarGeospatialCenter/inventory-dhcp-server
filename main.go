@@ -184,6 +184,8 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	var reply *dhcpv4.DHCPv4
 	var err error
 
+	log.Infof("Got packet from peer %s: %s", peer, reply.Summary())
+
 	switch m.MessageType() {
 
 	case dhcpv4.MessageTypeDiscover:
@@ -203,6 +205,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 
 	case dhcpv4.MessageTypeRequest:
 		// If we get a request packet, verify that the IP matches what is in inventory and send the correct response.
+		log.Infof("Got request message for: %s", m.ClientHWAddr)
 
 		packetValid, err := d.validPacket(m)
 		if err != nil {
