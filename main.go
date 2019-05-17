@@ -215,10 +215,12 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 
 		if packetValid {
 			reply, _ = dhcpv4.NewReplyFromRequest(m,
-				dhcpv4.WithMessageType(dhcpv4.MessageTypeAck))
+				dhcpv4.WithMessageType(dhcpv4.MessageTypeAck),
+				dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP(d.Config.ServerIdentifier))))
 		} else {
 			reply, _ = dhcpv4.NewReplyFromRequest(m,
-				dhcpv4.WithMessageType(dhcpv4.MessageTypeNak))
+				dhcpv4.WithMessageType(dhcpv4.MessageTypeNak),
+				dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP(d.Config.ServerIdentifier))))
 		}
 	}
 
