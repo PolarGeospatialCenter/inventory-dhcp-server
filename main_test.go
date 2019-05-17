@@ -134,7 +134,9 @@ func TestValidPacket(t *testing.T) {
 		},
 	}
 
-	valid, err := mockServer.validPacket(mockPacket)
+	expectedPacket, _ := mockServer.createOfferPacket(mockPacket)
+
+	valid, err := mockServer.validPacket(expectedPacket, mockPacket)
 	if err != nil {
 		t.Errorf("got error creating offer packet: %v", err)
 	}
@@ -169,7 +171,9 @@ func TestValidPacketInvalid(t *testing.T) {
 		},
 	}
 
-	valid, err := mockServer.validPacket(mockPacket)
+	expectedPacket, _ := mockServer.createOfferPacket(mockPacket)
+
+	valid, err := mockServer.validPacket(expectedPacket, mockPacket)
 	if err != nil {
 		t.Errorf("got error creating offer packet: %v", err)
 	}

@@ -165,15 +165,40 @@ func (d *DHCPServer) createOfferPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error)
 	return dhcpv4.NewReplyFromRequest(m, modifiers...)
 }
 
-//Verifies that a packet has the matching info in the inventory API
-func (d *DHCPServer) validPacket(m *dhcpv4.DHCPv4) (bool, error) {
-	// Get Packet that should of been offered
-	expectedPacket, err := d.createOfferPacket(m)
+func (d *DHCPServer) createAckNakPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
+
+	modifiers := []dhcpv4.Modifier{}
+
+	// Get offer packet to compare and pull data
+	offerPacket, err := d.createOfferPacket(m)
 	if err != nil {
-		return false, fmt.Errorf("error createing expected packet: %v", err)
+		return nil, fmt.Errorf("error createing offer packet: %v", err)
 	}
 
-	if m.RequestedIPAddress().String() == expectedPacket.YourIPAddr.String() {
+	// Check if packet is valid
+	packetValid, err := d.validPacket(offerPacket, m)
+	if err != nil {
+		return nil, fmt.Errorf("error validating request packet for client %s: %v", m.ClientHWAddr, err)
+	}
+
+	if packetValid {
+		modifiers = append(modifiers, dhcpv4.WithMessageType(dhcpv4.MessageTypeAck))
+	} else {
+		modifiers = append(modifiers, dhcpv4.WithMessageType(dhcpv4.MessageTypeNak))
+	}
+
+	// Append requried options
+	modifiers = append(modifiers,
+		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP(d.Config.ServerIdentifier))),
+		dhcpv4.WithYourIP(offerPacket.YourIPAddr))
+
+	return dhcpv4.NewReplyFromRequest(m, modifiers...)
+}
+
+//Verifies that a packet has the matching info in the inventory API
+func (d *DHCPServer) validPacket(expectedPacket, packet *dhcpv4.DHCPv4) (bool, error) {
+
+	if packet.RequestedIPAddress().String() == expectedPacket.YourIPAddr.String() {
 		return true, nil
 	}
 	return false, nil
@@ -207,20 +232,10 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		// If we get a request packet, verify that the IP matches what is in inventory and send the correct response.
 		log.Infof("Got request message for: %s", m.ClientHWAddr)
 
-		packetValid, err := d.validPacket(m)
+		reply, err = d.createAckNakPacket(m)
 		if err != nil {
-			log.Errorf("error validating request packet for client %s: %v", m.ClientHWAddr, err)
+			log.Errorf("error creating Ack or Nak packet for client %s: %v", m.ClientHWAddr, err)
 			return
-		}
-
-		if packetValid {
-			reply, _ = dhcpv4.NewReplyFromRequest(m,
-				dhcpv4.WithMessageType(dhcpv4.MessageTypeAck),
-				dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP(d.Config.ServerIdentifier))))
-		} else {
-			reply, _ = dhcpv4.NewReplyFromRequest(m,
-				dhcpv4.WithMessageType(dhcpv4.MessageTypeNak),
-				dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP(d.Config.ServerIdentifier))))
 		}
 	}
 
