@@ -167,16 +167,25 @@ func (d *DHCPServer) createOfferPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error)
 
 func (d *DHCPServer) createAckNakPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
 
-	modifiers := []dhcpv4.Modifier{}
-
-	// Get offer packet to compare and pull data
-	offerPacket, err := d.createOfferPacket(m)
+	// Get Node from API
+	inventoryNode, err := d.Inventory.GetByMac(m.ClientHWAddr)
 	if err != nil {
-		return nil, fmt.Errorf("error createing offer packet: %v", err)
+		return nil, err
+	}
+
+	// Get Node Specific Modifiers
+	modifiers, err := d.modifiersFromInventoryNode(m.ClientHWAddr, inventoryNode)
+	if err != nil {
+		return nil, err
+	}
+
+	expectedPacket, err := dhcpv4.NewReplyFromRequest(m, modifiers...)
+	if err != nil {
+		return nil, err
 	}
 
 	// Check if packet is valid
-	packetValid, err := d.validPacket(offerPacket, m)
+	packetValid, err := d.validPacket(expectedPacket, m)
 	if err != nil {
 		return nil, fmt.Errorf("error validating request packet for client %s: %v", m.ClientHWAddr, err)
 	}
@@ -186,11 +195,6 @@ func (d *DHCPServer) createAckNakPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error
 	} else {
 		modifiers = append(modifiers, dhcpv4.WithMessageType(dhcpv4.MessageTypeNak))
 	}
-
-	// Append requried options
-	modifiers = append(modifiers,
-		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP(d.Config.ServerIdentifier))),
-		dhcpv4.WithYourIP(offerPacket.YourIPAddr))
 
 	return dhcpv4.NewReplyFromRequest(m, modifiers...)
 }
