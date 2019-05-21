@@ -91,6 +91,15 @@ func modifiersFromNicConfig(nicConfig *types.NicConfig, ipNet *net.IPNet) ([]dhc
 	return result, nil
 }
 
+func withRelayAgentInfo(o *dhcpv4.RelayOptions) dhcpv4.Modifier {
+	options := []dhcpv4.Option{}
+	log.Printf("options: %v", options)
+	for code, value := range o.Options {
+		options = append(options, dhcpv4.OptGeneric(dhcpv4.GenericOptionCode(code), value))
+	}
+	return dhcpv4.WithOption(dhcpv4.OptRelayAgentInfo(options...))
+}
+
 func (d *DHCPServer) globalModifiers() []dhcpv4.Modifier {
 	result := []dhcpv4.Modifier{}
 
@@ -162,6 +171,11 @@ func (d *DHCPServer) createOfferPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error)
 	// Append Offer Message Type
 	modifiers = append(modifiers, dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer))
 
+	relayInfo := m.RelayAgentInfo()
+	if relayInfo != nil {
+		modifiers = append(modifiers, withRelayAgentInfo(relayInfo))
+	}
+
 	return dhcpv4.NewReplyFromRequest(m, modifiers...)
 }
 
@@ -194,6 +208,11 @@ func (d *DHCPServer) createAckNakPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error
 		modifiers = append(modifiers, dhcpv4.WithMessageType(dhcpv4.MessageTypeAck))
 	} else {
 		modifiers = append(modifiers, dhcpv4.WithMessageType(dhcpv4.MessageTypeNak))
+	}
+
+	relayInfo := m.RelayAgentInfo()
+	if relayInfo != nil {
+		modifiers = append(modifiers, withRelayAgentInfo(relayInfo))
 	}
 
 	return dhcpv4.NewReplyFromRequest(m, modifiers...)
