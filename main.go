@@ -168,13 +168,13 @@ func (d *DHCPServer) createOfferPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error)
 		return nil, err
 	}
 
+	// Append Offer Message Type
+	modifiers = append(modifiers, dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer))
+
 	relayInfo := m.RelayAgentInfo()
 	if relayInfo != nil {
 		modifiers = append(modifiers, withRelayAgentInfo(relayInfo))
 	}
-
-	// Append Offer Message Type
-	modifiers = append(modifiers, dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer))
 
 	return dhcpv4.NewReplyFromRequest(m, modifiers...)
 }
