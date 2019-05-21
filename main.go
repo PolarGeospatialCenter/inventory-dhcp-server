@@ -92,7 +92,8 @@ func modifiersFromNicConfig(nicConfig *types.NicConfig, ipNet *net.IPNet) ([]dhc
 }
 
 func withRelayAgentInfo(o *dhcpv4.RelayOptions) dhcpv4.Modifier {
-	options := make([]dhcpv4.Option, len(o.Options))
+	options := []dhcpv4.Option{}
+	log.Printf("options: %v", options)
 	for code, value := range o.Options {
 		options = append(options, dhcpv4.OptGeneric(dhcpv4.GenericOptionCode(code), value))
 	}
