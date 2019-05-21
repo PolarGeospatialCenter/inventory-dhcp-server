@@ -74,6 +74,7 @@ func TestCreateOfferPacket(t *testing.T) {
 	mockIP, mockNet, _ := net.ParseCIDR("192.168.1.10/24")
 	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
 	mockRequest, _ := dhcpv4.NewDiscovery(mac)
+
 	expectedPacket, _ := dhcpv4.NewReplyFromRequest(mockRequest,
 		dhcpv4.WithYourIP(mockIP),
 		dhcpv4.WithNetmask(mockNet.Mask),
@@ -86,6 +87,55 @@ func TestCreateOfferPacket(t *testing.T) {
 		dhcpv4.WithServerIP(net.ParseIP("192.168.1.50")),
 		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP("192.168.1.254"))),
 		dhcpv4.WithLeaseTime(3600),
+	)
+
+	mockServer := DHCPServer{
+		Inventory: MockInventory{},
+		Config: DHCPServerConfig{
+			IPNet:            mockNet.String(),
+			NextServer:       "192.168.1.50",
+			Filename:         "test.img",
+			ServerIdentifier: "192.168.1.254",
+		},
+	}
+
+	packet, err := mockServer.createOfferPacket(mockRequest)
+	if err != nil {
+		t.Errorf("got error creating offer packet: %v", err)
+	}
+
+	if !reflect.DeepEqual(expectedPacket, packet) {
+		t.Errorf("modified offer packet is not equal to expected: \n Expected: %s \n Got: %s", expectedPacket.Summary(), packet.Summary())
+	}
+
+}
+
+func TestCreateOfferPacketWithOption82(t *testing.T) {
+
+	mockIP, mockNet, _ := net.ParseCIDR("192.168.1.10/24")
+	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
+	mockRequest, _ := dhcpv4.NewDiscovery(mac)
+	dhcpv4.WithGeneric(dhcpv4.OptionRelayAgentInformation, []byte{
+		1, 5, 'l', 'i', 'n', 'u', 'x',
+		2, 4, 'b', 'o', 'o', 't',
+	})(mockRequest)
+
+	expectedPacket, _ := dhcpv4.NewReplyFromRequest(mockRequest,
+		dhcpv4.WithYourIP(mockIP),
+		dhcpv4.WithNetmask(mockNet.Mask),
+		dhcpv4.WithDNS(net.ParseIP("192.168.1.5")),
+		dhcpv4.WithRouter(net.ParseIP("192.168.1.1")),
+		dhcpv4.WithOption(dhcpv4.OptHostName("test-node-00")),
+		dhcpv4.WithOption(dhcpv4.OptTFTPServerName("192.168.1.50")),
+		dhcpv4.WithOption(dhcpv4.OptBootFileName("test.img")),
+		dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer),
+		dhcpv4.WithServerIP(net.ParseIP("192.168.1.50")),
+		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP("192.168.1.254"))),
+		dhcpv4.WithLeaseTime(3600),
+		dhcpv4.WithGeneric(dhcpv4.OptionRelayAgentInformation, []byte{
+			1, 5, 'l', 'i', 'n', 'u', 'x',
+			2, 4, 'b', 'o', 'o', 't',
+		}),
 	)
 
 	mockServer := DHCPServer{
