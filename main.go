@@ -1,9 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strings"
+
+	"github.com/google/uuid"
+
+	beeline "github.com/honeycombio/beeline-go"
+	"github.com/honeycombio/beeline-go/trace"
 
 	"github.com/PolarGeospatialCenter/inventory-client/pkg/api/client"
 	"github.com/PolarGeospatialCenter/inventory/pkg/inventory/types"
@@ -232,6 +238,8 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	var reply *dhcpv4.DHCPv4
 	var err error
 
+	_, reqTrace := trace.NewTrace(context.Background(), "")
+
 	log.Infof("Got packet from peer %s: %s", peer, m.Summary())
 
 	switch m.MessageType() {
@@ -263,7 +271,8 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	}
 
 	if reply != nil {
-
+		bootId := uuid.New().String()
+		reqTrace.GetRootSpan().AddField("boot_id", bootId)
 		log.Infof("Sending DHCP reply for %s to peer: %s", reply.ClientHWAddr, peer)
 
 		// Convert the packet to bytes and send it to our peer.
@@ -321,6 +330,8 @@ func main() {
 	//	log.Infof("%+v", viper.AllSettings())
 	log.Infof("Server Config:\n %+v", srv.Config)
 	log.Infof("API Config:\n %+v", srv.Config.InventoryAPIConfig)
+
+	beeline.Init(beeline.Config{})
 
 	listenAddr := &net.UDPAddr{
 		IP:   net.ParseIP(srv.Config.ListenIP),
