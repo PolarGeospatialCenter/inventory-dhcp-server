@@ -341,7 +341,7 @@ func main() {
 	beeline.Init(beeline.Config{
 		WriteKey: srv.Config.HoneycombWriteKey,
 		Dataset:  srv.Config.HoneycombDataset,
-		STDOUT:   true,
+		Debug:    true,
 	})
 	defer beeline.Close()
 
