@@ -26,6 +26,8 @@ type DHCPServerConfig struct {
 	Filename           string // The Filename option to pass to clients
 	ServerIdentifier   string // The Server Identifier, should be the IP of the network interface packets come in on.
 	InventoryAPIConfig *client.InventoryApiConfig
+	HoneycombWriteKey  string
+	HoneycombDataset   string
 }
 
 type DHCPServer struct {
@@ -331,7 +333,11 @@ func main() {
 	log.Infof("Server Config:\n %+v", srv.Config)
 	log.Infof("API Config:\n %+v", srv.Config.InventoryAPIConfig)
 
-	beeline.Init(beeline.Config{})
+	beeline.Init(beeline.Config{
+		WriteKey: srv.Config.HoneycombWriteKey,
+		Dataset:  srv.Config.HoneycombDataset,
+	})
+	defer beeline.Close()
 
 	listenAddr := &net.UDPAddr{
 		IP:   net.ParseIP(srv.Config.ListenIP),
