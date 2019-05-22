@@ -241,6 +241,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	var err error
 
 	_, reqTrace := trace.NewTrace(context.Background(), "")
+	defer reqTrace.Send()
 
 	log.Infof("Got packet from peer %s: %s", peer, m.Summary())
 
