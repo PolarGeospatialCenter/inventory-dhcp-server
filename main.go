@@ -242,6 +242,8 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	_, span := beeline.StartSpan(context.Background(), "handle_dhcp_request")
 	defer span.Send()
 
+	span.AddField("mac", m.ClientHWAddr)
+
 	log.Infof("Got packet from peer %s: %s", peer, m.Summary())
 
 	switch m.MessageType() {
@@ -275,7 +277,6 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	if reply != nil {
 		bootId := uuid.New().String()
 		span.AddField("boot_id", bootId)
-		span.AddField("mac", m.ClientHWAddr.String())
 		log.Infof("Sending DHCP reply for %s to peer: %s", reply.ClientHWAddr, peer)
 
 		// Convert the packet to bytes and send it to our peer.
