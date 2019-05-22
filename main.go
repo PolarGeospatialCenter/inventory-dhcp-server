@@ -292,6 +292,8 @@ func setDefaultConfig() {
 	viper.SetDefault("ipnet", "192.168.1.1/24")
 	viper.BindEnv("filename")
 	viper.BindEnv("nextserver")
+	viper.BindEnv("honeycombwritekey")
+	viper.BindEnv("honeycombdataset")
 	viper.BindEnv("inventoryapiconfig.baseurl")
 	viper.BindEnv("inventoryapiconfig.aws.region")
 	viper.BindEnv("inventoryapiconfig.aws.vault_role")
