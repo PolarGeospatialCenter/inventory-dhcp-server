@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -342,6 +343,10 @@ func main() {
 		Dataset:  srv.Config.HoneycombDataset,
 	})
 	defer beeline.Close()
+
+	_, srvSpan := beeline.StartSpan(context.Background(), "dhcp_server_startup")
+	srvSpan.AddField("start_time", time.Now())
+	srvSpan.Send()
 
 	listenAddr := &net.UDPAddr{
 		IP:   net.ParseIP(srv.Config.ListenIP),
