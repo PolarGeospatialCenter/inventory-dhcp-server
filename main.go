@@ -347,11 +347,11 @@ func main() {
 	defer beeline.Close()
 
 	_, tr := trace.NewTrace(context.Background(), "")
-	defer tr.Send()
 	tr.AddField("name", "dhcp_server_startup")
+	tr.AddField("meta.type", "app_startup")
 	srvSpan := tr.GetRootSpan()
 	srvSpan.AddField("start_time", time.Now())
-	srvSpan.Send()
+	tr.Send()
 
 	listenAddr := &net.UDPAddr{
 		IP:   net.ParseIP(srv.Config.ListenIP),
