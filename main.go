@@ -165,13 +165,17 @@ func (d *DHCPServer) modifiersFromInventoryNode(mac net.HardwareAddr, inventoryN
 
 }
 
-func (d *DHCPServer) createOfferPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
+func (d *DHCPServer) createOfferPacket(ctx context.Context, m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
+	_, span := trace.GetSpanFromContext(ctx).CreateChild(ctx)
+	defer span.Send()
+	span.AddField("name", "createOfferPacket")
 
 	// Get Node from API
 	inventoryNode, err := d.Inventory.GetByMac(m.ClientHWAddr)
 	if err != nil {
 		return nil, err
 	}
+	span.AddField("node_id", inventoryNode.ID())
 
 	// Get Node Specific Modifiers
 	modifiers, err := d.modifiersFromInventoryNode(m.ClientHWAddr, inventoryNode)
@@ -190,13 +194,17 @@ func (d *DHCPServer) createOfferPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error)
 	return dhcpv4.NewReplyFromRequest(m, modifiers...)
 }
 
-func (d *DHCPServer) createAckNakPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
+func (d *DHCPServer) createAckNakPacket(ctx context.Context, m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
+	_, span := trace.GetSpanFromContext(ctx).CreateChild(ctx)
+	defer span.Send()
+	span.AddField("name", "createAckNakPacket")
 
 	// Get Node from API
 	inventoryNode, err := d.Inventory.GetByMac(m.ClientHWAddr)
 	if err != nil {
 		return nil, err
 	}
+	span.AddField("node_id", inventoryNode.ID())
 
 	// Get Node Specific Modifiers
 	modifiers, err := d.modifiersFromInventoryNode(m.ClientHWAddr, inventoryNode)
@@ -243,10 +251,12 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	var reply *dhcpv4.DHCPv4
 	var err error
 
-	_, span := beeline.StartSpan(context.Background(), "handle_dhcp_request")
-	defer span.Send()
-
+	ctx, tr := trace.NewTrace(context.Background(), "")
+	defer tr.Send()
+	span := tr.GetRootSpan()
+	span.AddField("name", "handler")
 	span.AddField("mac", m.ClientHWAddr)
+	span.AddField("request_packet_type", m.MessageType())
 
 	log.Infof("Got packet from peer %s: %s", peer, m.Summary())
 
@@ -256,7 +266,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		// If we get a discover packet, create an offer for its mac address
 		log.Infof("Got discover message for: %s", m.ClientHWAddr)
 
-		reply, err = d.createOfferPacket(m)
+		reply, err = d.createOfferPacket(ctx, m)
 		if err != nil {
 			log.Errorf("error creating offer packet for client %s: %v", m.ClientHWAddr, err)
 			return
@@ -271,7 +281,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		// If we get a request packet, verify that the IP matches what is in inventory and send the correct response.
 		log.Infof("Got request message for: %s", m.ClientHWAddr)
 
-		reply, err = d.createAckNakPacket(m)
+		reply, err = d.createAckNakPacket(ctx, m)
 		if err != nil {
 			log.Errorf("error creating Ack or Nak packet for client %s: %v", m.ClientHWAddr, err)
 			return
@@ -281,6 +291,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	if reply != nil {
 		bootId := uuid.New().String()
 		span.AddField("boot_id", bootId)
+		span.AddField("reply_packet_type", reply.MessageType())
 		log.Infof("Sending DHCP reply for %s to peer: %s", reply.ClientHWAddr, peer)
 
 		// Convert the packet to bytes and send it to our peer.
@@ -349,7 +360,7 @@ func main() {
 	defer beeline.Close()
 
 	ctx, tr := trace.NewTrace(context.Background(), "")
-	tr.AddField("name", "dhcp_server_startup")
+	tr.GetRootSpan().AddField("name", "dhcp_server_startup")
 
 	listenAddr := &net.UDPAddr{
 		IP:   net.ParseIP(srv.Config.ListenIP),
