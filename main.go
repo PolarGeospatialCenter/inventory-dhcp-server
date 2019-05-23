@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	beeline "github.com/honeycombio/beeline-go"
+	"github.com/honeycombio/beeline-go/trace"
 
 	"github.com/PolarGeospatialCenter/inventory-client/pkg/api/client"
 	"github.com/PolarGeospatialCenter/inventory/pkg/inventory/types"
@@ -345,7 +346,9 @@ func main() {
 	})
 	defer beeline.Close()
 
-	_, srvSpan := beeline.StartSpan(context.Background(), "dhcp_server_startup")
+	_, tr := trace.NewTrace(context.Background(), "")
+	defer tr.Send()
+	srvSpan := tr.GetRootSpan()
 	srvSpan.AddField("start_time", time.Now())
 	srvSpan.Send()
 
