@@ -348,6 +348,7 @@ func main() {
 
 	_, tr := trace.NewTrace(context.Background(), "")
 	defer tr.Send()
+	tr.AddField("name", "dhcp_server_startup")
 	srvSpan := tr.GetRootSpan()
 	srvSpan.AddField("start_time", time.Now())
 	srvSpan.Send()
