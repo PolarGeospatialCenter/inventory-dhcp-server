@@ -6,8 +6,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/google/uuid"
-
 	beeline "github.com/honeycombio/beeline-go"
 	"github.com/honeycombio/beeline-go/trace"
 
@@ -255,8 +253,11 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	defer tr.Send()
 	span := tr.GetRootSpan()
 	span.AddField("name", "handler")
-	span.AddField("mac", m.ClientHWAddr)
+	if m.ClientHWAddr != nil {
+		span.AddField("mac", m.ClientHWAddr.String())
+	}
 	span.AddField("request_packet_type", m.MessageType())
+	span.AddField("request_packet", m)
 
 	log.Infof("Got packet from peer %s: %s", peer, m.Summary())
 
@@ -289,9 +290,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	}
 
 	if reply != nil {
-		bootId := uuid.New().String()
-		span.AddField("boot_id", bootId)
-		span.AddField("reply_packet_type", reply.MessageType())
+		span.AddField("reply_packet", reply)
 		log.Infof("Sending DHCP reply for %s to peer: %s", reply.ClientHWAddr, peer)
 
 		// Convert the packet to bytes and send it to our peer.
