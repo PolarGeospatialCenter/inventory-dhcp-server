@@ -348,7 +348,6 @@ func main() {
 
 	ctx, tr := trace.NewTrace(context.Background(), "")
 	tr.AddField("name", "dhcp_server_startup")
-	tr.AddField("meta.type", "app_startup")
 	_, srvSpan := trace.GetSpanFromContext(ctx).CreateChild(ctx)
 	srvSpan.AddField("start_time", time.Now())
 	tr.Send()
