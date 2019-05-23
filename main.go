@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -349,9 +348,8 @@ func main() {
 	ctx, tr := trace.NewTrace(context.Background(), "")
 	tr.AddField("name", "dhcp_server_startup")
 	_, srvSpan := trace.GetSpanFromContext(ctx).CreateChild(ctx)
-	srvSpan.AddField("start_time", time.Now())
+	srvSpan.Send()
 	tr.Send()
-
 	beeline.Flush(ctx)
 
 	listenAddr := &net.UDPAddr{
