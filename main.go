@@ -257,7 +257,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		span.AddField("mac", m.ClientHWAddr.String())
 	}
 	span.AddField("request_packet_type", m.MessageType())
-	span.AddField("request_packet", m)
+	span.AddField("request_packet", *m)
 
 	log.Infof("Got packet from peer %s: %s", peer, m.Summary())
 
@@ -290,7 +290,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	}
 
 	if reply != nil {
-		span.AddField("reply_packet", reply)
+		span.AddField("reply_packet", *reply)
 		log.Infof("Sending DHCP reply for %s to peer: %s", reply.ClientHWAddr, peer)
 
 		// Convert the packet to bytes and send it to our peer.
