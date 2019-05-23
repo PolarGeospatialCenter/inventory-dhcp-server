@@ -39,7 +39,10 @@ type inventoryNodeGetter interface {
 	GetByMac(mac net.HardwareAddr) (*types.InventoryNode, error)
 }
 
-func apiConnect(cfg *client.InventoryApiConfig) (*client.InventoryApi, error) {
+func apiConnect(ctx context.Context, cfg *client.InventoryApiConfig) (*client.InventoryApi, error) {
+	_, span := trace.GetSpanFromContext(ctx).CreateChild(ctx)
+	span.AddField("name", "apiConnect")
+	defer span.Send()
 
 	if cfg != nil {
 		return client.NewInventoryApiFromConfig(cfg)
@@ -347,23 +350,20 @@ func main() {
 
 	ctx, tr := trace.NewTrace(context.Background(), "")
 	tr.AddField("name", "dhcp_server_startup")
-	_, srvSpan := trace.GetSpanFromContext(ctx).CreateChild(ctx)
-	srvSpan.Send()
-	tr.Send()
-	beeline.Flush(ctx)
 
 	listenAddr := &net.UDPAddr{
 		IP:   net.ParseIP(srv.Config.ListenIP),
 		Port: dhcpv4.ServerPort,
 	}
 
-	client, err := apiConnect(srv.Config.InventoryAPIConfig)
+	client, err := apiConnect(ctx, srv.Config.InventoryAPIConfig)
 	if err != nil {
 		log.Panic(fmt.Errorf("cannot connect to inventory api: %v", err))
 	}
 
 	srv.Inventory = client.NodeConfig()
 
+	tr.Send()
 	server, err := server4.NewServer(listenAddr, srv.handler)
 
 	if err != nil {
