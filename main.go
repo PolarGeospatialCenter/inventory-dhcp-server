@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	beeline "github.com/honeycombio/beeline-go"
 	"github.com/honeycombio/beeline-go/trace"
@@ -34,7 +35,10 @@ type DHCPServer struct {
 }
 
 type inventoryNodeGetter interface {
-	GetByMac(mac net.HardwareAddr) (*types.InventoryNode, error)
+	CreateIPReservation(*types.IpamIpRequest, net.IP) (*types.IPReservation, error)
+	GetIPReservation(ip net.IP) (*types.IPReservation, error)
+	GetIPReservationsByMAC(mac net.HardwareAddr) (types.IPReservationList, error)
+	UpdateIPReservation(modified *types.IPReservation) (*types.IPReservation, error)
 }
 
 func apiConnect(ctx context.Context, cfg *client.InventoryApiConfig) (*client.InventoryApi, error) {
@@ -47,59 +51,6 @@ func apiConnect(ctx context.Context, cfg *client.InventoryApiConfig) (*client.In
 	}
 
 	return client.NewInventoryApiDefaultConfig("")
-}
-
-func getNetworkMatchingMacFromInventoryNode(mac net.HardwareAddr, node *types.InventoryNode) (*types.NICInstance, error) {
-
-	for _, net := range node.Networks {
-		for _, ifaceMac := range net.Interface.NICs {
-			if ifaceMac.String() == mac.String() {
-				return net, nil
-			}
-		}
-	}
-	// No network found for this mac, this shouldn't happen
-	return nil, fmt.Errorf("no network found matching mac address %s", mac)
-}
-
-func modifiersFromNicConfig(nicConfig *types.NicConfig, ipNet *net.IPNet) ([]dhcpv4.Modifier, error) {
-	result := []dhcpv4.Modifier{}
-
-	if len(nicConfig.IP) < 1 {
-		return result, fmt.Errorf("no IP found in nicConfig")
-	}
-
-	for index, ip := range nicConfig.IP {
-		inventoryIPParsed, inventoryIPNetParsed, err := net.ParseCIDR(ip)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing IP in inventory %s: %v", ip, err)
-		}
-
-		if ipNet.Contains(inventoryIPParsed) {
-
-			// Append our IP
-			result = append(result,
-				dhcpv4.WithYourIP(inventoryIPParsed),
-				dhcpv4.WithNetmask(inventoryIPNetParsed.Mask))
-
-			// Append Gateway at our IP index if it exists
-			gateway := net.ParseIP(nicConfig.Gateway[index])
-			if gateway != nil {
-				result = append(result,
-					dhcpv4.WithRouter(gateway))
-			}
-
-			// Append DNS Servers if they exist
-			dnsServers := []net.IP{}
-			for _, dnsServer := range nicConfig.DNS {
-				dnsServers = append(dnsServers, net.ParseIP(dnsServer))
-			}
-			result = append(result,
-				dhcpv4.WithDNS(dnsServers...))
-		}
-	}
-
-	return result, nil
 }
 
 func withRelayAgentInfo(o *dhcpv4.RelayOptions) dhcpv4.Modifier {
@@ -136,33 +87,82 @@ func (d *DHCPServer) globalModifiers() []dhcpv4.Modifier {
 	return result
 }
 
-func (d *DHCPServer) modifiersFromInventoryNode(mac net.HardwareAddr, inventoryNode *types.InventoryNode) ([]dhcpv4.Modifier, error) {
+func modifiersFromIPReservation(reservation *types.IPReservation) ([]dhcpv4.Modifier, error) {
+	result := []dhcpv4.Modifier{}
 
-	// The network the user provided in config to match against
-	_, ipNet, err := net.ParseCIDR(d.Config.IPNet)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing user provided IPNet %s: %v", d.Config.IPNet, err)
+	// Append our IP
+	result = append(result,
+		dhcpv4.WithYourIP(reservation.IP.IP),
+		dhcpv4.WithNetmask(reservation.IP.Mask))
+
+	// Append Gateway at our IP index if it exists
+	gateway := reservation.Gateway
+	if gateway != nil {
+		result = append(result,
+			dhcpv4.WithRouter(gateway))
 	}
 
-	nicInstance, err := getNetworkMatchingMacFromInventoryNode(mac, inventoryNode)
-	if err != nil {
+	// Append DNS Servers if they exist
+	dnsServers := []net.IP{}
+	for _, dnsServer := range reservation.DNS {
+		dnsServers = append(dnsServers, dnsServer)
+	}
+	result = append(result,
+		dhcpv4.WithDNS(dnsServers...))
+
+	if reservation.HostInformation != "" {
+		result = append(result, dhcpv4.WithOption(dhcpv4.OptHostName(reservation.HostInformation)))
+	}
+
+	return result, nil
+
+}
+
+func getSubnetIPFromRequest(request *dhcpv4.DHCPv4) net.IP {
+	if relayAgentInfo := request.RelayAgentInfo(); relayAgentInfo != nil {
+		opt82Subnet := relayAgentInfo.Get(dhcpv4.GenericOptionCode(5))
+		if opt82Subnet != nil && len(opt82Subnet) == 4 {
+			return (net.IP)(opt82Subnet)
+		}
+	}
+
+	return request.GatewayIPAddr
+}
+
+func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcpv4.DHCPv4) (*types.IPReservation, error) {
+	span := trace.GetSpanFromContext(ctx)
+	span.AddField("request.mac", request.ClientHWAddr.String())
+	// Attempt to create IP reservation
+	ipRequest := &types.IpamIpRequest{}
+	ipRequest.HwAddress = request.ClientHWAddr.String()
+	ipRequest.TTL = time.Hour.String()
+	subnetIP := getSubnetIPFromRequest(request)
+	if subnetIP != nil {
+		ipRequest.Subnet = subnetIP.String()
+	}
+
+	reservation, err := d.Inventory.CreateIPReservation(ipRequest, nil)
+	if err == nil {
+		return reservation, nil
+	} else if err != client.ErrConflict {
 		return nil, err
 	}
 
-	modifiers, err := modifiersFromNicConfig(&nicInstance.Config, ipNet)
-	if err != nil {
+	if subnetIP == nil {
+		return nil, fmt.Errorf("no gateway or subnet option specified, unable to allocate")
+	}
+
+	reservations, err := d.Inventory.GetIPReservationsByMAC(request.ClientHWAddr)
+	if err == nil {
+		for _, reservation = range reservations {
+			if reservation.IP.Contains(subnetIP) {
+				return reservation, nil
+			}
+		}
+	} else if err != client.ErrConflict {
 		return nil, err
 	}
-
-	if inventoryNode.Hostname != "" {
-		modifiers = append(modifiers, dhcpv4.WithOption(dhcpv4.OptHostName(inventoryNode.Hostname)))
-	}
-
-	// Append whatever global modifiers we have
-	modifiers = append(modifiers, d.globalModifiers()...)
-
-	return modifiers, err
-
+	return nil, fmt.Errorf("unable to get reservation")
 }
 
 func (d *DHCPServer) createOfferPacket(ctx context.Context, m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
@@ -170,20 +170,24 @@ func (d *DHCPServer) createOfferPacket(ctx context.Context, m *dhcpv4.DHCPv4) (*
 	defer span.Send()
 	span.AddField("name", "createOfferPacket")
 
-	// Get Node from API
-	inventoryNode, err := d.Inventory.GetByMac(m.ClientHWAddr)
+	reservation, err := d.getReservationForRequest(ctx, m)
 	if err != nil {
 		span.AddField("error", err.Error())
 		return nil, err
 	}
-	span.AddField("node_id", inventoryNode.ID())
 
-	// Get Node Specific Modifiers
-	modifiers, err := d.modifiersFromInventoryNode(m.ClientHWAddr, inventoryNode)
+	if reservation == nil {
+		return nil, fmt.Errorf("unable to reservation")
+	}
+
+	modifiers, err := modifiersFromIPReservation(reservation)
 	if err != nil {
 		span.AddField("error", err.Error())
 		return nil, err
 	}
+
+	// Append whatever global modifiers we have
+	modifiers = append(modifiers, d.globalModifiers()...)
 
 	// Append Offer Message Type
 	modifiers = append(modifiers, dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer))
@@ -201,20 +205,20 @@ func (d *DHCPServer) createAckNakPacket(ctx context.Context, m *dhcpv4.DHCPv4) (
 	defer span.Send()
 	span.AddField("name", "createAckNakPacket")
 
-	// Get Node from API
-	inventoryNode, err := d.Inventory.GetByMac(m.ClientHWAddr)
+	reservation, err := d.getReservationForRequest(ctx, m)
 	if err != nil {
 		span.AddField("error", err.Error())
 		return nil, err
 	}
-	span.AddField("node_id", inventoryNode.ID())
 
-	// Get Node Specific Modifiers
-	modifiers, err := d.modifiersFromInventoryNode(m.ClientHWAddr, inventoryNode)
+	modifiers, err := modifiersFromIPReservation(reservation)
 	if err != nil {
 		span.AddField("error", err.Error())
 		return nil, err
 	}
+
+	// Append whatever global modifiers we have
+	modifiers = append(modifiers, d.globalModifiers()...)
 
 	expectedPacket, err := dhcpv4.NewReplyFromRequest(m, modifiers...)
 	if err != nil {
@@ -245,6 +249,10 @@ func (d *DHCPServer) createAckNakPacket(ctx context.Context, m *dhcpv4.DHCPv4) (
 
 //Verifies that a packet has the matching info in the inventory API
 func (d *DHCPServer) validPacket(expectedPacket, packet *dhcpv4.DHCPv4) (bool, error) {
+
+	if packet.RequestedIPAddress() == nil || expectedPacket.YourIPAddr == nil {
+		return false, nil
+	}
 
 	if packet.RequestedIPAddress().String() == expectedPacket.YourIPAddr.String() {
 		return true, nil
@@ -386,7 +394,7 @@ func main() {
 		log.Panic(fmt.Errorf("cannot connect to inventory api: %v", err))
 	}
 
-	srv.Inventory = client.NodeConfig()
+	srv.Inventory = client.IPAM()
 
 	tr.Send()
 	server, err := server4.NewServer(listenAddr, srv.handler)
