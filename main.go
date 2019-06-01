@@ -129,11 +129,26 @@ func getSubnetIPFromRequest(request *dhcpv4.DHCPv4) net.IP {
 	return request.GatewayIPAddr
 }
 
+func getCircuitIDFromRequest(request *dhcpv4.DHCPv4) string {
+	if relayAgentInfo := request.RelayAgentInfo(); relayAgentInfo != nil {
+		opt82Circuit := relayAgentInfo.Get(dhcpv4.GenericOptionCode(1))
+		return string(opt82Circuit)
+	}
+
+	return ""
+}
+
 func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcpv4.DHCPv4) (*types.IPReservation, error) {
-	span := trace.GetSpanFromContext(ctx)
+	_, span := trace.GetSpanFromContext(ctx).CreateChild(ctx)
+	defer span.Send()
 	span.AddField("request.mac", request.ClientHWAddr.String())
 	// Attempt to create IP reservation
 	subnetIP := getSubnetIPFromRequest(request)
+	if subnetIP != nil {
+		span.AddField("request.subnet", subnetIP.String())
+	}
+	circuitId := getCircuitIDFromRequest(request)
+	span.AddField("request.circuit_id", circuitId)
 
 	reservations, err := d.Inventory.GetIPReservationsByMAC(request.ClientHWAddr)
 	if err == nil {
@@ -271,6 +286,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	defer tr.Send()
 	span := tr.GetRootSpan()
 	span.AddField("name", "handler")
+	span.AddField("meta.type", "dhcp_request")
 	if m.ClientHWAddr != nil {
 		span.AddField("mac", m.ClientHWAddr.String())
 	}
