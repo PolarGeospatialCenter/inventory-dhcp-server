@@ -133,10 +133,22 @@ func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcp
 	span := trace.GetSpanFromContext(ctx)
 	span.AddField("request.mac", request.ClientHWAddr.String())
 	// Attempt to create IP reservation
+	subnetIP := getSubnetIPFromRequest(request)
+
+	reservations, err := d.Inventory.GetIPReservationsByMAC(request.ClientHWAddr)
+	if err == nil {
+		for _, reservation := range reservations {
+			if reservation.IP.Contains(subnetIP) || len(reservations) == 1 {
+				return reservation, nil
+			}
+		}
+	} else if err != client.ErrConflict {
+		return nil, err
+	}
+
 	ipRequest := &types.IpamIpRequest{}
 	ipRequest.HwAddress = request.ClientHWAddr.String()
 	ipRequest.TTL = time.Hour.String()
-	subnetIP := getSubnetIPFromRequest(request)
 	if subnetIP != nil {
 		ipRequest.Subnet = subnetIP.String()
 	}
@@ -152,16 +164,6 @@ func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcp
 		return nil, fmt.Errorf("no gateway or subnet option specified, unable to allocate")
 	}
 
-	reservations, err := d.Inventory.GetIPReservationsByMAC(request.ClientHWAddr)
-	if err == nil {
-		for _, reservation = range reservations {
-			if reservation.IP.Contains(subnetIP) {
-				return reservation, nil
-			}
-		}
-	} else if err != client.ErrConflict {
-		return nil, err
-	}
 	return nil, fmt.Errorf("unable to get reservation")
 }
 
