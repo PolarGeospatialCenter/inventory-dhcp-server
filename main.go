@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"strings"
@@ -132,7 +133,7 @@ func getSubnetIPFromRequest(request *dhcpv4.DHCPv4) net.IP {
 func getCircuitIDFromRequest(request *dhcpv4.DHCPv4) string {
 	if relayAgentInfo := request.RelayAgentInfo(); relayAgentInfo != nil {
 		opt82Circuit := relayAgentInfo.Get(dhcpv4.GenericOptionCode(1))
-		return string(opt82Circuit)
+		return hex.EncodeToString(opt82Circuit)
 	}
 
 	return ""
@@ -141,6 +142,7 @@ func getCircuitIDFromRequest(request *dhcpv4.DHCPv4) string {
 func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcpv4.DHCPv4) (*types.IPReservation, error) {
 	_, span := trace.GetSpanFromContext(ctx).CreateChild(ctx)
 	defer span.Send()
+	span.AddField("name", "getReservationForRequest")
 	span.AddField("request.mac", request.ClientHWAddr.String())
 	// Attempt to create IP reservation
 	subnetIP := getSubnetIPFromRequest(request)
