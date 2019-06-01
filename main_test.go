@@ -7,30 +7,25 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/PolarGeospatialCenter/inventory-client/pkg/api/client"
 	"github.com/PolarGeospatialCenter/inventory/pkg/inventory/types"
 	beeline "github.com/honeycombio/beeline-go"
 	"github.com/honeycombio/beeline-go/trace"
 	"github.com/insomniacslk/dhcp/dhcpv4"
 )
 
-func TestDhcpModifiersFromNicConfig(t *testing.T) {
+func TestDhcpModifiersFromIPReservation(t *testing.T) {
 
-	nicConfig := types.NicConfig{
-		IP: []string{
-			"192.168.1.1/24",
-		},
-		Gateway: []string{
-			"192.168.1.254",
-		},
-		DNS: []string{
-			"192.168.1.1",
-			"192.168.1.2",
+	reservation := &types.IPReservation{
+		IP:      &net.IPNet{IP: net.ParseIP("192.168.1.1"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
+		Gateway: net.ParseIP("192.168.1.254"),
+		DNS: []net.IP{
+			net.ParseIP("192.168.1.1"),
+			net.ParseIP("192.168.1.2"),
 		},
 	}
 
-	_, ipNet, _ := net.ParseCIDR("192.168.1.1/24")
-
-	_, err := modifiersFromNicConfig(&nicConfig, ipNet)
+	_, err := modifiersFromIPReservation(reservation)
 	if err != nil {
 		t.Errorf("got error from function, %v", err)
 	}
@@ -38,38 +33,47 @@ func TestDhcpModifiersFromNicConfig(t *testing.T) {
 }
 
 type MockInventory struct {
+	reservations []*types.IPReservation
 }
 
-func (i MockInventory) GetByMac(mac net.HardwareAddr) (*types.InventoryNode, error) {
-	mockMac, _ := net.ParseMAC("01:23:45:67:89:ab")
-
-	if mac.String() != mockMac.String() {
-		return nil, fmt.Errorf("provided mac %s does not match mock mac %s", mac, mockMac)
-	}
-
-	mockNode := &types.InventoryNode{
-		Hostname: "test-node-00",
-		Networks: map[string]*types.NICInstance{
-			"test": &types.NICInstance{
-				Interface: types.NetworkInterface{
-					NICs: []net.HardwareAddr{mockMac},
-				},
-				Config: types.NicConfig{
-					IP: []string{
-						"192.168.1.10/24",
-					},
-					Gateway: []string{
-						"192.168.1.1",
-					},
-					DNS: []string{
-						"192.168.1.5",
-					},
-				},
+func (i MockInventory) CreateIPReservation(req *types.IpamIpRequest, ip net.IP) (*types.IPReservation, error) {
+	mac, _ := net.ParseMAC(req.HwAddress)
+	if r, err := i.GetIPReservationsByMAC(mac); len(r) == 0 && err == nil {
+		res := &types.IPReservation{
+			IP:              &net.IPNet{IP: net.ParseIP("192.168.1.20"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
+			MAC:             mac,
+			HostInformation: "test-node-00",
+			Gateway:         net.ParseIP("192.168.1.1"),
+			DNS: []net.IP{
+				net.ParseIP("192.168.1.5"),
 			},
-		},
+		}
+		i.reservations = append(i.reservations, res)
+		return res, nil
 	}
+	return nil, client.ErrConflict
+}
 
-	return mockNode, nil
+func (i MockInventory) GetIPReservation(ip net.IP) (*types.IPReservation, error) {
+	for _, res := range i.reservations {
+		if res.IP.IP.Equal(ip) {
+			return res, nil
+		}
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (i MockInventory) GetIPReservationsByMAC(mac net.HardwareAddr) (types.IPReservationList, error) {
+	for _, res := range i.reservations {
+		if res.MAC.String() == mac.String() {
+			return types.IPReservationList{res}, nil
+		}
+	}
+	return types.IPReservationList{}, nil
+}
+
+func (i MockInventory) UpdateIPReservation(modified *types.IPReservation) (*types.IPReservation, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func TestCreateOfferPacket(t *testing.T) {
@@ -77,6 +81,7 @@ func TestCreateOfferPacket(t *testing.T) {
 	mockIP, mockNet, _ := net.ParseCIDR("192.168.1.10/24")
 	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
 	mockRequest, _ := dhcpv4.NewDiscovery(mac)
+	mockRequest.GatewayIPAddr = net.ParseIP("192.168.1.1")
 
 	expectedPacket, _ := dhcpv4.NewReplyFromRequest(mockRequest,
 		dhcpv4.WithYourIP(mockIP),
@@ -93,7 +98,19 @@ func TestCreateOfferPacket(t *testing.T) {
 	)
 
 	mockServer := DHCPServer{
-		Inventory: MockInventory{},
+		Inventory: MockInventory{
+			reservations: []*types.IPReservation{
+				&types.IPReservation{
+					IP:              &net.IPNet{IP: net.ParseIP("192.168.1.10"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
+					MAC:             mac,
+					HostInformation: "test-node-00",
+					Gateway:         net.ParseIP("192.168.1.1"),
+					DNS: []net.IP{
+						net.ParseIP("192.168.1.5"),
+					},
+				},
+			},
+		},
 		Config: DHCPServerConfig{
 			IPNet:            mockNet.String(),
 			NextServer:       "192.168.1.50",
@@ -115,6 +132,22 @@ func TestCreateOfferPacket(t *testing.T) {
 
 }
 
+func TestGetSubnetIPWithOption82(t *testing.T) {
+
+	mac, _ := net.ParseMAC("01:23:45:67:89:ab")
+	mockRequest, _ := dhcpv4.NewDiscovery(mac)
+	dhcpv4.WithGeneric(dhcpv4.OptionRelayAgentInformation, []byte{
+		1, 5, 'l', 'i', 'n', 'u', 'x',
+		2, 4, 'b', 'o', 'o', 't',
+		5, 4, 192, 168, 1, 1,
+	})(mockRequest)
+
+	subnetIP := getSubnetIPFromRequest(mockRequest)
+	if subnetIP.String() != "192.168.1.1" {
+		t.Errorf("Wrong subnet returned: %s", subnetIP)
+	}
+}
+
 func TestCreateOfferPacketWithOption82(t *testing.T) {
 
 	mockIP, mockNet, _ := net.ParseCIDR("192.168.1.10/24")
@@ -123,6 +156,7 @@ func TestCreateOfferPacketWithOption82(t *testing.T) {
 	dhcpv4.WithGeneric(dhcpv4.OptionRelayAgentInformation, []byte{
 		1, 5, 'l', 'i', 'n', 'u', 'x',
 		2, 4, 'b', 'o', 'o', 't',
+		5, 4, 192, 168, 1, 1,
 	})(mockRequest)
 
 	expectedPacket, _ := dhcpv4.NewReplyFromRequest(mockRequest,
@@ -140,11 +174,24 @@ func TestCreateOfferPacketWithOption82(t *testing.T) {
 		dhcpv4.WithGeneric(dhcpv4.OptionRelayAgentInformation, []byte{
 			1, 5, 'l', 'i', 'n', 'u', 'x',
 			2, 4, 'b', 'o', 'o', 't',
+			5, 4, 192, 168, 1, 1,
 		}),
 	)
 
 	mockServer := DHCPServer{
-		Inventory: MockInventory{},
+		Inventory: MockInventory{
+			reservations: []*types.IPReservation{
+				&types.IPReservation{
+					IP:              &net.IPNet{IP: net.ParseIP("192.168.1.10"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
+					MAC:             mac,
+					HostInformation: "test-node-00",
+					Gateway:         net.ParseIP("192.168.1.1"),
+					DNS: []net.IP{
+						net.ParseIP("192.168.1.5"),
+					},
+				},
+			},
+		},
 		Config: DHCPServerConfig{
 			IPNet:            mockNet.String(),
 			NextServer:       "192.168.1.50",
@@ -174,7 +221,8 @@ func TestCreateAckPacket(t *testing.T) {
 	mockRequest, _ := dhcpv4.NewReplyFromRequest(&dhcpv4.DHCPv4{},
 		dhcpv4.WithMessageType(dhcpv4.MessageTypeRequest),
 		dhcpv4.WithHwAddr(mac),
-		dhcpv4.WithOption(dhcpv4.OptRequestedIPAddress(mockIP)))
+		dhcpv4.WithOption(dhcpv4.OptRequestedIPAddress(mockIP)),
+		dhcpv4.WithRelay(net.ParseIP("192.168.1.1")))
 
 	expectedPacket, _ := dhcpv4.NewReplyFromRequest(mockRequest,
 		dhcpv4.WithYourIP(mockIP),
@@ -191,7 +239,19 @@ func TestCreateAckPacket(t *testing.T) {
 	)
 
 	mockServer := DHCPServer{
-		Inventory: MockInventory{},
+		Inventory: MockInventory{
+			reservations: []*types.IPReservation{
+				&types.IPReservation{
+					IP:              &net.IPNet{IP: net.ParseIP("192.168.1.10"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
+					MAC:             mac,
+					HostInformation: "test-node-00",
+					Gateway:         net.ParseIP("192.168.1.1"),
+					DNS: []net.IP{
+						net.ParseIP("192.168.1.5"),
+					},
+				},
+			},
+		},
 		Config: DHCPServerConfig{
 			IPNet:            mockNet.String(),
 			NextServer:       "192.168.1.50",
@@ -227,10 +287,23 @@ func TestValidPacket(t *testing.T) {
 		dhcpv4.WithOption(dhcpv4.OptTFTPServerName("192.168.1.50")),
 		dhcpv4.WithOption(dhcpv4.OptBootFileName("test.img")),
 		dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer),
+		dhcpv4.WithRelay(net.ParseIP("192.168.1.1")),
 	)
 
 	mockServer := DHCPServer{
-		Inventory: MockInventory{},
+		Inventory: MockInventory{
+			reservations: []*types.IPReservation{
+				&types.IPReservation{
+					IP:              &net.IPNet{IP: net.ParseIP("192.168.1.10"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
+					MAC:             mac,
+					HostInformation: "test-node-00",
+					Gateway:         net.ParseIP("192.168.1.1"),
+					DNS: []net.IP{
+						net.ParseIP("192.168.1.5"),
+					},
+				},
+			},
+		},
 		Config: DHCPServerConfig{
 			IPNet:      mockNet.String(),
 			NextServer: "192.168.1.50",
@@ -241,8 +314,12 @@ func TestValidPacket(t *testing.T) {
 	beeline.Init(beeline.Config{STDOUT: true})
 	ctx, _ := trace.NewTrace(context.Background(), "")
 
-	expectedPacket, _ := mockServer.createOfferPacket(ctx, mockPacket)
+	expectedPacket, err := mockServer.createOfferPacket(ctx, mockPacket)
+	if err != nil {
+		t.Errorf("unable to generate expected packet: %v", err)
+	}
 
+	t.Log(expectedPacket, mockPacket)
 	valid, err := mockServer.validPacket(expectedPacket, mockPacket)
 	if err != nil {
 		t.Errorf("got error creating offer packet: %v", err)
