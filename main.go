@@ -171,6 +171,7 @@ func (d *DHCPServer) createOfferPacket(ctx context.Context, m *dhcpv4.DHCPv4) (*
 	// Get Node from API
 	inventoryNode, err := d.Inventory.GetByMac(m.ClientHWAddr)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, err
 	}
 	span.AddField("node_id", inventoryNode.ID())
@@ -178,6 +179,7 @@ func (d *DHCPServer) createOfferPacket(ctx context.Context, m *dhcpv4.DHCPv4) (*
 	// Get Node Specific Modifiers
 	modifiers, err := d.modifiersFromInventoryNode(m.ClientHWAddr, inventoryNode)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, err
 	}
 
@@ -200,6 +202,7 @@ func (d *DHCPServer) createAckNakPacket(ctx context.Context, m *dhcpv4.DHCPv4) (
 	// Get Node from API
 	inventoryNode, err := d.Inventory.GetByMac(m.ClientHWAddr)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, err
 	}
 	span.AddField("node_id", inventoryNode.ID())
@@ -207,17 +210,20 @@ func (d *DHCPServer) createAckNakPacket(ctx context.Context, m *dhcpv4.DHCPv4) (
 	// Get Node Specific Modifiers
 	modifiers, err := d.modifiersFromInventoryNode(m.ClientHWAddr, inventoryNode)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, err
 	}
 
 	expectedPacket, err := dhcpv4.NewReplyFromRequest(m, modifiers...)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, err
 	}
 
 	// Check if packet is valid
 	packetValid, err := d.validPacket(expectedPacket, m)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, fmt.Errorf("error validating request packet for client %s: %v", m.ClientHWAddr, err)
 	}
 
@@ -257,7 +263,10 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		span.AddField("mac", m.ClientHWAddr.String())
 	}
 	span.AddField("request_packet_type", m.MessageType())
-	span.AddField("request_packet", *m)
+	span.AddField("request.giaddr", m.GatewayIPAddr)
+	span.AddField("request.summary", m.Summary())
+	span.AddField("request.transaction_id", m.TransactionID.String())
+	span.AddField("request.ciaddr", m.ClientIPAddr.String())
 
 	log.Infof("Got packet from peer %s: %s", peer, m.Summary())
 
@@ -269,6 +278,7 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 
 		reply, err = d.createOfferPacket(ctx, m)
 		if err != nil {
+			span.AddField("error", err.Error())
 			log.Errorf("error creating offer packet for client %s: %v", m.ClientHWAddr, err)
 			return
 		}
@@ -284,17 +294,20 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 
 		reply, err = d.createAckNakPacket(ctx, m)
 		if err != nil {
+			span.AddField("error", err.Error())
 			log.Errorf("error creating Ack or Nak packet for client %s: %v", m.ClientHWAddr, err)
 			return
 		}
 	}
 
 	if reply != nil {
-		span.AddField("reply_packet", *reply)
+		span.AddField("reply.summary", reply.Summary())
+		span.AddField("reply.yiaddr", reply.YourIPAddr.String())
 		log.Infof("Sending DHCP reply for %s to peer: %s", reply.ClientHWAddr, peer)
 
 		// Convert the packet to bytes and send it to our peer.
 		if _, err := conn.WriteTo(reply.ToBytes(), peer); err != nil {
+			span.AddField("error", err.Error())
 			log.Errorf("Cannot reply to client %s: %v", reply.ClientHWAddr, err)
 		}
 
