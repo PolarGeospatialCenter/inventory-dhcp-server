@@ -51,8 +51,8 @@ func (i MockInventory) GetByMac(mac net.HardwareAddr) (*types.InventoryNode, err
 		Hostname: "test-node-00",
 		Networks: map[string]*types.NICInstance{
 			"test": &types.NICInstance{
-				NIC: types.NICInfo{
-					MAC: mockMac,
+				Interface: types.NetworkInterface{
+					NICs: []net.HardwareAddr{mockMac},
 				},
 				Config: types.NicConfig{
 					IP: []string{

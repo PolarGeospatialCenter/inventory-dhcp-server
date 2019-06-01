@@ -52,8 +52,10 @@ func apiConnect(ctx context.Context, cfg *client.InventoryApiConfig) (*client.In
 func getNetworkMatchingMacFromInventoryNode(mac net.HardwareAddr, node *types.InventoryNode) (*types.NICInstance, error) {
 
 	for _, net := range node.Networks {
-		if net.NIC.MAC.String() == mac.String() {
-			return net, nil
+		for _, ifaceMac := range net.Interface.NICs {
+			if ifaceMac.String() == mac.String() {
+				return net, nil
+			}
 		}
 	}
 	// No network found for this mac, this shouldn't happen
