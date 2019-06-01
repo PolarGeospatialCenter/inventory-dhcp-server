@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"reflect"
 	"testing"
 
 	"github.com/PolarGeospatialCenter/inventory/pkg/inventory/types"
+	beeline "github.com/honeycombio/beeline-go"
+	"github.com/honeycombio/beeline-go/trace"
 	"github.com/insomniacslk/dhcp/dhcpv4"
 )
 
@@ -99,7 +102,9 @@ func TestCreateOfferPacket(t *testing.T) {
 		},
 	}
 
-	packet, err := mockServer.createOfferPacket(mockRequest)
+	beeline.Init(beeline.Config{STDOUT: true})
+	ctx, _ := trace.NewTrace(context.Background(), "")
+	packet, err := mockServer.createOfferPacket(ctx, mockRequest)
 	if err != nil {
 		t.Errorf("got error creating offer packet: %v", err)
 	}
@@ -148,7 +153,9 @@ func TestCreateOfferPacketWithOption82(t *testing.T) {
 		},
 	}
 
-	packet, err := mockServer.createOfferPacket(mockRequest)
+	beeline.Init(beeline.Config{STDOUT: true})
+	ctx, _ := trace.NewTrace(context.Background(), "")
+	packet, err := mockServer.createOfferPacket(ctx, mockRequest)
 	if err != nil {
 		t.Errorf("got error creating offer packet: %v", err)
 	}
@@ -193,7 +200,9 @@ func TestCreateAckPacket(t *testing.T) {
 		},
 	}
 
-	packet, err := mockServer.createAckNakPacket(mockRequest)
+	beeline.Init(beeline.Config{STDOUT: true})
+	ctx, _ := trace.NewTrace(context.Background(), "")
+	packet, err := mockServer.createAckNakPacket(ctx, mockRequest)
 	if err != nil {
 		t.Errorf("got error creating ack packet: %v", err)
 	}
@@ -229,7 +238,10 @@ func TestValidPacket(t *testing.T) {
 		},
 	}
 
-	expectedPacket, _ := mockServer.createOfferPacket(mockPacket)
+	beeline.Init(beeline.Config{STDOUT: true})
+	ctx, _ := trace.NewTrace(context.Background(), "")
+
+	expectedPacket, _ := mockServer.createOfferPacket(ctx, mockPacket)
 
 	valid, err := mockServer.validPacket(expectedPacket, mockPacket)
 	if err != nil {
@@ -266,7 +278,9 @@ func TestValidPacketInvalid(t *testing.T) {
 		},
 	}
 
-	expectedPacket, _ := mockServer.createOfferPacket(mockPacket)
+	beeline.Init(beeline.Config{STDOUT: true})
+	ctx, _ := trace.NewTrace(context.Background(), "")
+	expectedPacket, _ := mockServer.createOfferPacket(ctx, mockPacket)
 
 	valid, err := mockServer.validPacket(expectedPacket, mockPacket)
 	if err != nil {

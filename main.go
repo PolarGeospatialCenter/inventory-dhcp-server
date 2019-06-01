@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strings"
+
+	beeline "github.com/honeycombio/beeline-go"
+	"github.com/honeycombio/beeline-go/trace"
 
 	"github.com/PolarGeospatialCenter/inventory-client/pkg/api/client"
 	"github.com/PolarGeospatialCenter/inventory/pkg/inventory/types"
@@ -20,6 +24,8 @@ type DHCPServerConfig struct {
 	Filename           string // The Filename option to pass to clients
 	ServerIdentifier   string // The Server Identifier, should be the IP of the network interface packets come in on.
 	InventoryAPIConfig *client.InventoryApiConfig
+	HoneycombWriteKey  string
+	HoneycombDataset   string
 }
 
 type DHCPServer struct {
@@ -31,7 +37,10 @@ type inventoryNodeGetter interface {
 	GetByMac(mac net.HardwareAddr) (*types.InventoryNode, error)
 }
 
-func apiConnect(cfg *client.InventoryApiConfig) (*client.InventoryApi, error) {
+func apiConnect(ctx context.Context, cfg *client.InventoryApiConfig) (*client.InventoryApi, error) {
+	_, span := trace.GetSpanFromContext(ctx).CreateChild(ctx)
+	span.AddField("name", "apiConnect")
+	defer span.Send()
 
 	if cfg != nil {
 		return client.NewInventoryApiFromConfig(cfg)
@@ -154,17 +163,23 @@ func (d *DHCPServer) modifiersFromInventoryNode(mac net.HardwareAddr, inventoryN
 
 }
 
-func (d *DHCPServer) createOfferPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
+func (d *DHCPServer) createOfferPacket(ctx context.Context, m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
+	_, span := trace.GetSpanFromContext(ctx).CreateChild(ctx)
+	defer span.Send()
+	span.AddField("name", "createOfferPacket")
 
 	// Get Node from API
 	inventoryNode, err := d.Inventory.GetByMac(m.ClientHWAddr)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, err
 	}
+	span.AddField("node_id", inventoryNode.ID())
 
 	// Get Node Specific Modifiers
 	modifiers, err := d.modifiersFromInventoryNode(m.ClientHWAddr, inventoryNode)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, err
 	}
 
@@ -179,28 +194,36 @@ func (d *DHCPServer) createOfferPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error)
 	return dhcpv4.NewReplyFromRequest(m, modifiers...)
 }
 
-func (d *DHCPServer) createAckNakPacket(m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
+func (d *DHCPServer) createAckNakPacket(ctx context.Context, m *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
+	_, span := trace.GetSpanFromContext(ctx).CreateChild(ctx)
+	defer span.Send()
+	span.AddField("name", "createAckNakPacket")
 
 	// Get Node from API
 	inventoryNode, err := d.Inventory.GetByMac(m.ClientHWAddr)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, err
 	}
+	span.AddField("node_id", inventoryNode.ID())
 
 	// Get Node Specific Modifiers
 	modifiers, err := d.modifiersFromInventoryNode(m.ClientHWAddr, inventoryNode)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, err
 	}
 
 	expectedPacket, err := dhcpv4.NewReplyFromRequest(m, modifiers...)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, err
 	}
 
 	// Check if packet is valid
 	packetValid, err := d.validPacket(expectedPacket, m)
 	if err != nil {
+		span.AddField("error", err.Error())
 		return nil, fmt.Errorf("error validating request packet for client %s: %v", m.ClientHWAddr, err)
 	}
 
@@ -232,6 +255,19 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	var reply *dhcpv4.DHCPv4
 	var err error
 
+	ctx, tr := trace.NewTrace(context.Background(), "")
+	defer tr.Send()
+	span := tr.GetRootSpan()
+	span.AddField("name", "handler")
+	if m.ClientHWAddr != nil {
+		span.AddField("mac", m.ClientHWAddr.String())
+	}
+	span.AddField("request_packet_type", m.MessageType())
+	span.AddField("request.giaddr", m.GatewayIPAddr)
+	span.AddField("request.summary", m.Summary())
+	span.AddField("request.transaction_id", m.TransactionID.String())
+	span.AddField("request.ciaddr", m.ClientIPAddr.String())
+
 	log.Infof("Got packet from peer %s: %s", peer, m.Summary())
 
 	switch m.MessageType() {
@@ -240,8 +276,9 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		// If we get a discover packet, create an offer for its mac address
 		log.Infof("Got discover message for: %s", m.ClientHWAddr)
 
-		reply, err = d.createOfferPacket(m)
+		reply, err = d.createOfferPacket(ctx, m)
 		if err != nil {
+			span.AddField("error", err.Error())
 			log.Errorf("error creating offer packet for client %s: %v", m.ClientHWAddr, err)
 			return
 		}
@@ -255,19 +292,22 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		// If we get a request packet, verify that the IP matches what is in inventory and send the correct response.
 		log.Infof("Got request message for: %s", m.ClientHWAddr)
 
-		reply, err = d.createAckNakPacket(m)
+		reply, err = d.createAckNakPacket(ctx, m)
 		if err != nil {
+			span.AddField("error", err.Error())
 			log.Errorf("error creating Ack or Nak packet for client %s: %v", m.ClientHWAddr, err)
 			return
 		}
 	}
 
 	if reply != nil {
-
+		span.AddField("reply.summary", reply.Summary())
+		span.AddField("reply.yiaddr", reply.YourIPAddr.String())
 		log.Infof("Sending DHCP reply for %s to peer: %s", reply.ClientHWAddr, peer)
 
 		// Convert the packet to bytes and send it to our peer.
 		if _, err := conn.WriteTo(reply.ToBytes(), peer); err != nil {
+			span.AddField("error", err.Error())
 			log.Errorf("Cannot reply to client %s: %v", reply.ClientHWAddr, err)
 		}
 
@@ -281,6 +321,8 @@ func setDefaultConfig() {
 	viper.SetDefault("ipnet", "192.168.1.1/24")
 	viper.BindEnv("filename")
 	viper.BindEnv("nextserver")
+	viper.BindEnv("honeycombwritekey")
+	viper.BindEnv("honeycombdataset")
 	viper.BindEnv("inventoryapiconfig.baseurl")
 	viper.BindEnv("inventoryapiconfig.aws.region")
 	viper.BindEnv("inventoryapiconfig.aws.vault_role")
@@ -322,18 +364,29 @@ func main() {
 	log.Infof("Server Config:\n %+v", srv.Config)
 	log.Infof("API Config:\n %+v", srv.Config.InventoryAPIConfig)
 
+	beeline.Init(beeline.Config{
+		WriteKey: srv.Config.HoneycombWriteKey,
+		Dataset:  srv.Config.HoneycombDataset,
+		Debug:    true,
+	})
+	defer beeline.Close()
+
+	ctx, tr := trace.NewTrace(context.Background(), "")
+	tr.GetRootSpan().AddField("name", "dhcp_server_startup")
+
 	listenAddr := &net.UDPAddr{
 		IP:   net.ParseIP(srv.Config.ListenIP),
 		Port: dhcpv4.ServerPort,
 	}
 
-	client, err := apiConnect(srv.Config.InventoryAPIConfig)
+	client, err := apiConnect(ctx, srv.Config.InventoryAPIConfig)
 	if err != nil {
 		log.Panic(fmt.Errorf("cannot connect to inventory api: %v", err))
 	}
 
 	srv.Inventory = client.NodeConfig()
 
+	tr.Send()
 	server, err := server4.NewServer(listenAddr, srv.handler)
 
 	if err != nil {

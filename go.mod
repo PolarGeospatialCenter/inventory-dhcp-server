@@ -12,7 +12,13 @@ require (
 	github.com/docker/docker v1.13.1 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.3.3 // indirect
+	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
+	github.com/facebookgo/limitgroup v0.0.0-20150612190941-6abd8d71ec01 // indirect
+	github.com/facebookgo/muster v0.0.0-20150708232844-fd3d7953fd52 // indirect
 	github.com/go-test/deep v1.0.1 // indirect
+	github.com/google/uuid v1.1.1
+	github.com/honeycombio/beeline-go v0.4.4
+	github.com/honeycombio/libhoney-go v1.10.0 // indirect
 	github.com/hugelgupf/socketpair v0.0.0-20190312070548-ac4bdefbf625 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20190502200304-2ecf202a098f
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
@@ -29,5 +35,6 @@ require (
 	github.com/u-root/u-root v4.0.1-0.20190424231930-9952fa19d06e+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20190325154230-a5d413f7728c // indirect
 	golang.org/x/text v0.3.1-0.20181227161524-e6919f6577db // indirect
+	gopkg.in/alexcesaro/statsd.v2 v2.0.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 )
