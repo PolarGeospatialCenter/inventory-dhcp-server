@@ -32,6 +32,12 @@ func TestDhcpModifiersFromIPReservation(t *testing.T) {
 
 }
 
+type MockNetworkInventory struct{}
+
+func (i MockNetworkInventory) GetAll() ([]*types.Network, error) {
+	return []*types.Network{}, nil
+}
+
 type MockInventory struct {
 	reservations []*types.IPReservation
 }
@@ -111,6 +117,7 @@ func TestCreateOfferPacket(t *testing.T) {
 				},
 			},
 		},
+		Networks: MockNetworkInventory{},
 		Config: DHCPServerConfig{
 			IPNet:            mockNet.String(),
 			NextServer:       "192.168.1.50",
@@ -192,6 +199,7 @@ func TestCreateOfferPacketWithOption82(t *testing.T) {
 				},
 			},
 		},
+		Networks: MockNetworkInventory{},
 		Config: DHCPServerConfig{
 			IPNet:            mockNet.String(),
 			NextServer:       "192.168.1.50",
@@ -252,6 +260,7 @@ func TestCreateAckPacket(t *testing.T) {
 				},
 			},
 		},
+		Networks: MockNetworkInventory{},
 		Config: DHCPServerConfig{
 			IPNet:            mockNet.String(),
 			NextServer:       "192.168.1.50",
@@ -304,6 +313,7 @@ func TestValidPacket(t *testing.T) {
 				},
 			},
 		},
+		Networks: MockNetworkInventory{},
 		Config: DHCPServerConfig{
 			IPNet:      mockNet.String(),
 			NextServer: "192.168.1.50",
@@ -348,6 +358,7 @@ func TestValidPacketInvalid(t *testing.T) {
 
 	mockServer := DHCPServer{
 		Inventory: MockInventory{},
+		Networks:  MockNetworkInventory{},
 		Config: DHCPServerConfig{
 			IPNet:      mockNet.String(),
 			NextServer: "192.168.1.50",
