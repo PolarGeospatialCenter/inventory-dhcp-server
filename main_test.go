@@ -100,7 +100,7 @@ func TestCreateOfferPacket(t *testing.T) {
 		dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer),
 		dhcpv4.WithServerIP(net.ParseIP("192.168.1.50")),
 		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP("192.168.1.254"))),
-		dhcpv4.WithLeaseTime(3600),
+		dhcpv4.WithLeaseTime(12*3600),
 	)
 
 	mockServer := DHCPServer{
@@ -177,7 +177,7 @@ func TestCreateOfferPacketWithOption82(t *testing.T) {
 		dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer),
 		dhcpv4.WithServerIP(net.ParseIP("192.168.1.50")),
 		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP("192.168.1.254"))),
-		dhcpv4.WithLeaseTime(3600),
+		dhcpv4.WithLeaseTime(12*3600),
 		dhcpv4.WithGeneric(dhcpv4.OptionRelayAgentInformation, []byte{
 			1, 5, 'l', 'i', 'n', 'u', 'x',
 			2, 4, 'b', 'o', 'o', 't',
@@ -243,7 +243,7 @@ func TestCreateAckPacket(t *testing.T) {
 		dhcpv4.WithMessageType(dhcpv4.MessageTypeAck),
 		dhcpv4.WithServerIP(net.ParseIP("192.168.1.50")),
 		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP("192.168.1.254"))),
-		dhcpv4.WithLeaseTime(3600),
+		dhcpv4.WithLeaseTime(12*3600),
 	)
 
 	mockServer := DHCPServer{
