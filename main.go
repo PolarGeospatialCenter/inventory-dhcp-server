@@ -32,7 +32,12 @@ type DHCPServerConfig struct {
 
 type DHCPServer struct {
 	Inventory inventoryNodeGetter
+	Networks  networkInfoGetter
 	Config    DHCPServerConfig
+}
+
+type networkInfoGetter interface {
+	GetAll() ([]*types.Network, error)
 }
 
 type inventoryNodeGetter interface {
@@ -151,6 +156,24 @@ func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcp
 	}
 	circuitId := getCircuitIDFromRequest(request)
 	span.AddField("request.circuit_id", circuitId)
+
+	networks, err := d.Networks.GetAll()
+	if err != nil {
+		span.AddField("error", err.Error())
+		return nil, fmt.Errorf("unable to get network information")
+	}
+
+	for _, network := range networks {
+		networkCircuitId, ok := network.Metadata["circuit_id"]
+		if !ok || networkCircuitId != circuitId {
+			continue
+		}
+		for _, subnet := range network.Subnets {
+			if subnet.DynamicAllocationEnabled() || subnet.StaticAllocationEnabled() {
+				subnetIP = subnet.Cidr.IP
+			}
+		}
+	}
 
 	reservations, err := d.Inventory.GetIPReservationsByMAC(request.ClientHWAddr)
 	if err == nil {
@@ -415,6 +438,7 @@ func main() {
 	}
 
 	srv.Inventory = client.IPAM()
+	srv.Networks = client.Network()
 
 	tr.Send()
 	server, err := server4.NewServer(listenAddr, srv.handler)
