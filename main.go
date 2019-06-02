@@ -88,7 +88,7 @@ func (d *DHCPServer) globalModifiers() []dhcpv4.Modifier {
 		dhcpv4.WithServerIP(net.ParseIP(d.Config.NextServer)))
 
 	result = append(result,
-		dhcpv4.WithLeaseTime(3600))
+		dhcpv4.WithLeaseTime(3600*12))
 
 	return result
 }
@@ -187,7 +187,7 @@ func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcp
 		for _, reservation := range reservations {
 			if reservation.IP.Contains(subnetIP) {
 				if !reservation.Static() {
-					newEnd := time.Now().Add(time.Hour)
+					newEnd := time.Now().Add(12 * time.Hour)
 					reservation.End = &newEnd
 					return d.Inventory.UpdateIPReservation(reservation)
 				}
@@ -200,7 +200,7 @@ func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcp
 
 	ipRequest := &types.IpamIpRequest{}
 	ipRequest.HwAddress = request.ClientHWAddr.String()
-	ipRequest.TTL = time.Hour.String()
+	ipRequest.TTL = (12 * time.Hour).String()
 	if subnetIP != nil {
 		ipRequest.Subnet = subnetIP.String()
 	}
