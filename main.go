@@ -144,22 +144,9 @@ func getCircuitIDFromRequest(request *dhcpv4.DHCPv4) string {
 	return ""
 }
 
-func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcpv4.DHCPv4) (*types.IPReservation, error) {
-	_, span := trace.GetSpanFromContext(ctx).CreateChild(ctx)
-	defer span.Send()
-	span.AddField("name", "getReservationForRequest")
-	span.AddField("request.mac", request.ClientHWAddr.String())
-	// Attempt to create IP reservation
-	subnetIP := getSubnetIPFromRequest(request)
-	if subnetIP != nil {
-		span.AddField("request.subnet", subnetIP.String())
-	}
-	circuitId := getCircuitIDFromRequest(request)
-	span.AddField("request.circuit_id", circuitId)
-
+func (d *DHCPServer) getSubnetIPFromCircuitID(circuitId string) (net.IP, error) {
 	networks, err := d.Networks.GetAll()
 	if err != nil {
-		span.AddField("error", err.Error())
 		return nil, fmt.Errorf("unable to get network information")
 	}
 
@@ -170,15 +157,40 @@ func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcp
 		}
 		for _, subnet := range network.Subnets {
 			if subnet.DynamicAllocationEnabled() || subnet.StaticAllocationEnabled() {
-				subnetIP = subnet.Cidr.IP
+				return subnet.Cidr.IP, nil
 			}
 		}
+	}
+	return nil, nil
+}
+
+func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcpv4.DHCPv4) (*types.IPReservation, error) {
+	_, span := trace.GetSpanFromContext(ctx).CreateChild(ctx)
+	defer span.Send()
+	span.AddField("name", "getReservationForRequest")
+	span.AddField("request.mac", request.ClientHWAddr.String())
+	// Attempt to create IP reservation
+	subnetIP := getSubnetIPFromRequest(request)
+	if subnetIP != nil {
+		span.AddField("request.subnet", subnetIP.String())
+	}
+
+	circuitId := getCircuitIDFromRequest(request)
+	span.AddField("request.circuit_id", circuitId)
+
+	if circuitSubnetIP, err := d.getSubnetIPFromCircuitID(circuitId); err == nil && circuitSubnetIP != nil {
+		subnetIP = circuitSubnetIP
 	}
 
 	reservations, err := d.Inventory.GetIPReservationsByMAC(request.ClientHWAddr)
 	if err == nil {
 		for _, reservation := range reservations {
-			if reservation.IP.Contains(subnetIP) || len(reservations) == 1 {
+			if reservation.IP.Contains(subnetIP) {
+				if !reservation.Static() {
+					newEnd := time.Now().Add(time.Hour)
+					reservation.End = &newEnd
+					return d.Inventory.UpdateIPReservation(reservation)
+				}
 				return reservation, nil
 			}
 		}
