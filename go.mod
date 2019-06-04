@@ -5,8 +5,8 @@ go 1.12
 require (
 	cloud.google.com/go v0.39.0 // indirect
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
-	github.com/PolarGeospatialCenter/inventory v0.3.1
-	github.com/PolarGeospatialCenter/inventory-client v0.0.0-20190601214913-a605a7f52ed7
+	github.com/PolarGeospatialCenter/inventory v0.3.2
+	github.com/PolarGeospatialCenter/inventory-client v0.0.0-20190604130520-9457b5abf6bb
 	github.com/armon/go-metrics v0.0.0-20190430140413-ec5e00d3c878 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/coreos/etcd v3.3.13+incompatible // indirect
@@ -58,9 +58,9 @@ require (
 	golang.org/x/lint v0.0.0-20190409202823-959b441ac422 // indirect
 	golang.org/x/mobile v0.0.0-20190509164839-32b2708ab171 // indirect
 	golang.org/x/mod v0.1.0 // indirect
-	golang.org/x/oauth2 v0.0.0-20190523182746-aaccbc9213b0 // indirect
+	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
 	google.golang.org/appengine v1.6.0 // indirect
 	google.golang.org/genproto v0.0.0-20190530194941-fb225487d101 // indirect
 	gopkg.in/alexcesaro/statsd.v2 v2.0.0 // indirect
-	honnef.co/go/tools v0.0.0-20190531162725-42df64e2171a // indirect
+	honnef.co/go/tools v0.0.0-20190602125119-5a4a2f4a438d // indirect
 )
