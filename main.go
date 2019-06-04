@@ -116,8 +116,11 @@ func modifiersFromIPReservation(reservation *types.IPReservation) ([]dhcpv4.Modi
 	result = append(result,
 		dhcpv4.WithDNS(dnsServers...))
 
-	if reservation.HostInformation != "" {
-		result = append(result, dhcpv4.WithOption(dhcpv4.OptHostName(reservation.HostInformation)))
+	if hostnameI, ok := reservation.Metadata["hostname"]; ok {
+		hostname, sok := hostnameI.(string)
+		if sok {
+			result = append(result, dhcpv4.WithOption(dhcpv4.OptHostName(hostname)))
+		}
 	}
 
 	return result, nil
@@ -187,6 +190,9 @@ func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcp
 		for _, reservation := range reservations {
 			if reservation.IP.Contains(subnetIP) {
 				if !reservation.Static() {
+					if request.HostName() != "" {
+						reservation.Metadata["hostname"] = request.HostName()
+					}
 					newEnd := time.Now().Add(12 * time.Hour)
 					reservation.End = &newEnd
 					return d.Inventory.UpdateIPReservation(reservation)
@@ -198,8 +204,9 @@ func (d *DHCPServer) getReservationForRequest(ctx context.Context, request *dhcp
 		return nil, err
 	}
 
-	ipRequest := &types.IpamIpRequest{}
+	ipRequest := &types.IpamIpRequest{Metadata: make(types.Metadata)}
 	ipRequest.HwAddress = request.ClientHWAddr.String()
+	ipRequest.Metadata["hostname"] = request.HostName()
 	ipRequest.TTL = (12 * time.Hour).String()
 	if subnetIP != nil {
 		ipRequest.Subnet = subnetIP.String()
