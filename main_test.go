@@ -107,10 +107,10 @@ func TestCreateOfferPacket(t *testing.T) {
 		Inventory: MockInventory{
 			reservations: []*types.IPReservation{
 				&types.IPReservation{
-					IP:              &net.IPNet{IP: net.ParseIP("192.168.1.10"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
-					MAC:             mac,
-					HostInformation: "test-node-00",
-					Gateway:         net.ParseIP("192.168.1.1"),
+					IP:       &net.IPNet{IP: net.ParseIP("192.168.1.10"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
+					MAC:      mac,
+					Metadata: types.Metadata{"hostname": "test-node-00"},
+					Gateway:  net.ParseIP("192.168.1.1"),
 					DNS: []net.IP{
 						net.ParseIP("192.168.1.5"),
 					},
@@ -136,7 +136,6 @@ func TestCreateOfferPacket(t *testing.T) {
 	if !reflect.DeepEqual(expectedPacket, packet) {
 		t.Errorf("modified offer packet is not equal to expected: \n Expected: %s \n Got: %s", expectedPacket.Summary(), packet.Summary())
 	}
-
 }
 
 func TestGetSubnetIPWithOption82(t *testing.T) {
@@ -189,10 +188,10 @@ func TestCreateOfferPacketWithOption82(t *testing.T) {
 		Inventory: MockInventory{
 			reservations: []*types.IPReservation{
 				&types.IPReservation{
-					IP:              &net.IPNet{IP: net.ParseIP("192.168.1.10"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
-					MAC:             mac,
-					HostInformation: "test-node-00",
-					Gateway:         net.ParseIP("192.168.1.1"),
+					IP:       &net.IPNet{IP: net.ParseIP("192.168.1.10"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
+					MAC:      mac,
+					Metadata: types.Metadata{"hostname": "test-node-00"},
+					Gateway:  net.ParseIP("192.168.1.1"),
 					DNS: []net.IP{
 						net.ParseIP("192.168.1.5"),
 					},
@@ -250,10 +249,10 @@ func TestCreateAckPacket(t *testing.T) {
 		Inventory: MockInventory{
 			reservations: []*types.IPReservation{
 				&types.IPReservation{
-					IP:              &net.IPNet{IP: net.ParseIP("192.168.1.10"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
-					MAC:             mac,
-					HostInformation: "test-node-00",
-					Gateway:         net.ParseIP("192.168.1.1"),
+					IP:       &net.IPNet{IP: net.ParseIP("192.168.1.10"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
+					MAC:      mac,
+					Metadata: types.Metadata{"hostname": "test-node-00"},
+					Gateway:  net.ParseIP("192.168.1.1"),
 					DNS: []net.IP{
 						net.ParseIP("192.168.1.5"),
 					},

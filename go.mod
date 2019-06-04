@@ -59,7 +59,7 @@ require (
 	golang.org/x/mobile v0.0.0-20190509164839-32b2708ab171 // indirect
 	golang.org/x/mod v0.1.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
-	google.golang.org/appengine v1.6.0 // indirect
+	google.golang.org/appengine v1.6.0
 	google.golang.org/genproto v0.0.0-20190530194941-fb225487d101 // indirect
 	gopkg.in/alexcesaro/statsd.v2 v2.0.0 // indirect
 	honnef.co/go/tools v0.0.0-20190602125119-5a4a2f4a438d // indirect
