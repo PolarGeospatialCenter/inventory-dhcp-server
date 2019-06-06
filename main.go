@@ -12,6 +12,7 @@ import (
 	"github.com/honeycombio/beeline-go/trace"
 
 	"github.com/PolarGeospatialCenter/inventory-client/pkg/api/client"
+	"github.com/PolarGeospatialCenter/inventory-dhcp-server/ratelimiter"
 	"github.com/PolarGeospatialCenter/inventory/pkg/inventory/types"
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv4/server4"
@@ -31,9 +32,10 @@ type DHCPServerConfig struct {
 }
 
 type DHCPServer struct {
-	Inventory inventoryNodeGetter
-	Networks  networkInfoGetter
-	Config    DHCPServerConfig
+	Inventory        inventoryNodeGetter
+	Networks         networkInfoGetter
+	Config           DHCPServerConfig
+	hostRateLimiters *ratelimiter.HostRateLimitMap
 }
 
 type networkInfoGetter interface {
@@ -326,14 +328,23 @@ func (d *DHCPServer) handler(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 	var reply *dhcpv4.DHCPv4
 	var err error
 
+	if m.ClientHWAddr.String() != "" {
+		limiter := d.hostRateLimiters.GetHost(m.ClientHWAddr.String())
+		if !limiter.Allow() {
+			log.Printf("Ignoring request from %s, rate limit exceeded", m.ClientHWAddr.String())
+			return
+		}
+	} else {
+		log.Printf("Ignoring request without mac.")
+		return
+	}
+
 	ctx, tr := trace.NewTrace(context.Background(), "")
 	defer tr.Send()
 	span := tr.GetRootSpan()
 	span.AddField("name", "handler")
 	span.AddField("meta.type", "dhcp_request")
-	if m.ClientHWAddr != nil {
-		span.AddField("mac", m.ClientHWAddr.String())
-	}
+	span.AddField("mac", m.ClientHWAddr.String())
 	span.AddField("request_packet_type", m.MessageType())
 	span.AddField("request.giaddr", m.GatewayIPAddr)
 	span.AddField("request.summary", m.Summary())
@@ -458,6 +469,7 @@ func main() {
 
 	srv.Inventory = client.IPAM()
 	srv.Networks = client.Network()
+	srv.hostRateLimiters = ratelimiter.NewHostRateLimitMap(0.08333, 5)
 
 	tr.Send()
 	server, err := server4.NewServer(listenAddr, srv.handler)
