@@ -16,6 +16,17 @@ import (
 
 func TestDhcpModifiersFromIPReservation(t *testing.T) {
 
+	mockServer := DHCPServer{
+		Inventory: MockInventory{},
+		Networks: MockNetworkInventory{},
+		Config: DHCPServerConfig{
+			IPNet:            "192.168.1.0/24",
+			NextServer:       "192.168.1.50",
+			Filename:         "test.img",
+			ServerIdentifier: "192.168.1.254",
+		},
+	}
+
 	reservation := &types.IPReservation{
 		IP:      &net.IPNet{IP: net.ParseIP("192.168.1.1"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
 		Gateway: net.ParseIP("192.168.1.254"),
@@ -23,14 +34,47 @@ func TestDhcpModifiersFromIPReservation(t *testing.T) {
 			net.ParseIP("192.168.1.1"),
 			net.ParseIP("192.168.1.2"),
 		},
+		Metadata: map[string]interface{}{
+			"dhcp_options": map[string]string{
+				"filename": "http://nexthost.local/ipxe?mac=${mac}",
+			},
+		},
 	}
 
-	_, err := modifiersFromIPReservation(reservation)
+	_, err := mockServer.modifiersFromIPReservation(reservation)
 	if err != nil {
 		t.Errorf("got error from function, %v", err)
 	}
-
 }
+
+func TestBootFilenameFromIPReservation(t *testing.T) {
+
+	mockServer := DHCPServer{
+		Config: DHCPServerConfig{
+			Filename:         "test.img",
+		},
+	}
+
+	reservation := &types.IPReservation{
+		Metadata: map[string]interface{}{
+			"dhcp_options": map[string]string{
+				"filename": "http://nexthost.local/ipxe?mac=${mac}",
+			},
+		},
+	}
+
+	filename := mockServer.getBootFilenameFromIPReservation(reservation)
+	if filename != "http://nexthost.local/ipxe?mac=${mac}" {
+		t.Errorf("Expected iPXE url, got %s", filename)
+	}
+
+	filename = mockServer.getBootFilenameFromIPReservation(&types.IPReservation{}) 
+	if filename != "test.img" {
+		t.Errorf("Expected default filename, got %s", filename)
+	}
+}
+
+
 
 type MockNetworkInventory struct{}
 

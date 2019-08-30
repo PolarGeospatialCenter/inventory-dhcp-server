@@ -78,11 +78,6 @@ func (d *DHCPServer) globalModifiers() []dhcpv4.Modifier {
 			dhcpv4.WithOption(dhcpv4.OptTFTPServerName(d.Config.NextServer)))
 	}
 
-	if d.Config.Filename != "" {
-		result = append(result,
-			dhcpv4.WithOption(dhcpv4.OptBootFileName(d.Config.Filename)))
-	}
-
 	result = append(result,
 		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP(d.Config.ServerIdentifier))))
 
@@ -95,8 +90,25 @@ func (d *DHCPServer) globalModifiers() []dhcpv4.Modifier {
 	return result
 }
 
-func modifiersFromIPReservation(reservation *types.IPReservation) ([]dhcpv4.Modifier, error) {
+func (d *DHCPServer) getBootFilenameFromIPReservation(reservation *types.IPReservation) string {
+	if dhcpOptions, ok := reservation.Metadata["dhcp_options"]; ok {
+		if optionMap, ok := dhcpOptions.(map[string]string); ok {
+			return optionMap["filename"]
+		} else {
+			log.Warnf("Expected dhcp_options to be of type map[string]string: got %T", dhcpOptions)
+		}
+	}
+
+	return d.Config.Filename
+}
+
+func (d *DHCPServer) modifiersFromIPReservation(reservation *types.IPReservation) ([]dhcpv4.Modifier, error) {
 	result := []dhcpv4.Modifier{}
+
+	if filename := d.getBootFilenameFromIPReservation(reservation); filename != "" {
+		result = append(result,
+			dhcpv4.WithOption(dhcpv4.OptBootFileName(d.Config.Filename)))
+	}
 
 	// Append our IP
 	result = append(result,
@@ -243,7 +255,7 @@ func (d *DHCPServer) createOfferPacket(ctx context.Context, m *dhcpv4.DHCPv4) (*
 		return nil, fmt.Errorf("unable to reservation")
 	}
 
-	modifiers, err := modifiersFromIPReservation(reservation)
+	modifiers, err := d.modifiersFromIPReservation(reservation)
 	if err != nil {
 		span.AddField("error", err.Error())
 		return nil, err
@@ -274,7 +286,7 @@ func (d *DHCPServer) createAckNakPacket(ctx context.Context, m *dhcpv4.DHCPv4) (
 		return nil, err
 	}
 
-	modifiers, err := modifiersFromIPReservation(reservation)
+	modifiers, err := d.modifiersFromIPReservation(reservation)
 	if err != nil {
 		span.AddField("error", err.Error())
 		return nil, err
