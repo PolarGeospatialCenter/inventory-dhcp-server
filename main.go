@@ -111,7 +111,7 @@ func (d *DHCPServer) modifiersFromIPReservation(reservation *types.IPReservation
 
 	if filename := d.getBootFilenameFromIPReservation(reservation); filename != "" {
 		result = append(result,
-			dhcpv4.WithOption(dhcpv4.OptBootFileName(d.Config.Filename)))
+			dhcpv4.WithOption(dhcpv4.OptBootFileName(filename)))
 	}
 
 	// Append our IP

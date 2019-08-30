@@ -282,7 +282,7 @@ func TestCreateAckPacket(t *testing.T) {
 		dhcpv4.WithRouter(net.ParseIP("192.168.1.1")),
 		dhcpv4.WithOption(dhcpv4.OptHostName("test-node-00")),
 		dhcpv4.WithOption(dhcpv4.OptTFTPServerName("192.168.1.50")),
-		dhcpv4.WithOption(dhcpv4.OptBootFileName("test.img")),
+		dhcpv4.WithOption(dhcpv4.OptBootFileName("override.img")),
 		dhcpv4.WithMessageType(dhcpv4.MessageTypeAck),
 		dhcpv4.WithServerIP(net.ParseIP("192.168.1.50")),
 		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(net.ParseIP("192.168.1.254"))),
@@ -295,7 +295,7 @@ func TestCreateAckPacket(t *testing.T) {
 				&types.IPReservation{
 					IP:       &net.IPNet{IP: net.ParseIP("192.168.1.10"), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
 					MAC:      mac,
-					Metadata: types.Metadata{"hostname": "test-node-00"},
+					Metadata: types.Metadata{"hostname": "test-node-00", "dhcp_options": map[string]interface{}{"filename":"override.img"}},
 					Gateway:  net.ParseIP("192.168.1.1"),
 					DNS: []net.IP{
 						net.ParseIP("192.168.1.5"),
