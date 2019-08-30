@@ -92,10 +92,14 @@ func (d *DHCPServer) globalModifiers() []dhcpv4.Modifier {
 
 func (d *DHCPServer) getBootFilenameFromIPReservation(reservation *types.IPReservation) string {
 	if dhcpOptions, ok := reservation.Metadata["dhcp_options"]; ok {
-		if optionMap, ok := dhcpOptions.(map[string]string); ok {
-			return optionMap["filename"]
+		if optionMap, ok := dhcpOptions.(map[string]interface{}); ok {
+			if filename, ok := optionMap["filename"].(string); ok {
+				return filename
+			} else {
+				log.Warnf("Expected filename dhcp_option to be a string, got: %T", optionMap["filename"])
+			}
 		} else {
-			log.Warnf("Expected dhcp_options to be of type map[string]string: got %T", dhcpOptions)
+			log.Warnf("Expected dhcp_options to be of type map[string]interface{}: got %T", dhcpOptions)
 		}
 	}
 

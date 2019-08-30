@@ -35,7 +35,7 @@ func TestDhcpModifiersFromIPReservation(t *testing.T) {
 			net.ParseIP("192.168.1.2"),
 		},
 		Metadata: map[string]interface{}{
-			"dhcp_options": map[string]string{
+			"dhcp_options": map[string]interface{}{
 				"filename": "http://nexthost.local/ipxe?mac=${mac}",
 			},
 		},
@@ -57,7 +57,7 @@ func TestBootFilenameFromIPReservation(t *testing.T) {
 
 	reservation := &types.IPReservation{
 		Metadata: map[string]interface{}{
-			"dhcp_options": map[string]string{
+			"dhcp_options": map[string]interface{}{
 				"filename": "http://nexthost.local/ipxe?mac=${mac}",
 			},
 		},
